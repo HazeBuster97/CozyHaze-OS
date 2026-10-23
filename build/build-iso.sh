@@ -12,6 +12,7 @@ C_CYAN="\033[36m"
 C_GREEN="\033[32m"
 C_YELLOW="\033[33m"
 C_RED="\033[31m"
+C_GRAY="\033[90m"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
