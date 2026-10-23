@@ -47,7 +47,7 @@ fonts-font-awesome
 dmz-cursor-theme
 
 # Hilfswerkzeuge
-policykit-1-gnome
+mate-polkit
 network-manager-gnome
 rofi
 catfish

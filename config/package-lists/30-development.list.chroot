@@ -63,7 +63,7 @@ jq
 tmux
 htop
 btop
-neofetch
+fastfetch
 
 # Editoren & IDEs (Core)
 geany
@@ -81,19 +81,5 @@ rsync
 
 # Container & Homelab
 docker.io
-docker-compose
 podman
-
-# Bibliotheken für Headless-Browser & Playwright
-libnss3
-libatk1.0-0
-libatk-bridge2.0-0
-libcups2
-libdrm2
-libxcomposite1
-libxdamage1
-libxfixes3
-libxrandr2
-libgbm1
-libasound2
-libxshmfence1
+podman-compose
