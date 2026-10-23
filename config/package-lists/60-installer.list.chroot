@@ -1,0 +1,17 @@
+# CozyHaze OS - 60-installer
+# Calamares Grafischer Installer und Partitions-Infrastruktur
+
+calamares
+calamares-settings-debian
+gparted
+cryptsetup
+cryptsetup-initramfs
+keyutils
+efibootmgr
+grub-efi-amd64
+grub-efi-amd64-bin
+grub-pc
+grub-pc-bin
+os-prober
+isolinux
+syslinux-common

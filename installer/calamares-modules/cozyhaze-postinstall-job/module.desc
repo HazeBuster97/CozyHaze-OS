@@ -1,0 +1,6 @@
+---
+type:       "job"
+name:       "cozyhaze-postinstall-job"
+interface:  "process"
+command:    "/usr/local/sbin/cozyhaze-postinstall"
+timeout:    600

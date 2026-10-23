@@ -1,0 +1,88 @@
+name: Build CozyHaze OS Hybrid ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compile Hybrid ISO for MacBook Pro 2011
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space on GitHub Runner
+        run: |
+          echo "=== Freigabe von Speicherplatz auf dem Runner ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - name: Build CozyHaze Docker Container
+        run: |
+          echo "=== Erstelle isolierten Debian 13 Builder Container ==="
+          docker build -t cozyhaze-builder -f build/Dockerfile.builder .
+
+      - name: Compile CozyHaze OS ISO
+        run: |
+          echo "=== Starte Master ISO Build Pipeline ==="
+          docker run --privileged -v "$GITHUB_WORKSPACE:/workspace" cozyhaze-builder /workspace/build/build-iso.sh
+
+      - name: Verify ISO and Generate Summary
+        run: |
+          echo "=== Build-Ergebnis ==="
+          ls -la output/
+          
+          ISO_FILE=$(find output -name "*.iso" -printf '%f\n' | head -n 1)
+          if [ -z "$ISO_FILE" ]; then
+            echo "Fehler: Keine ISO erzeugt!"
+            exit 1
+          fi
+          
+          SHA256_HASH=$(cat "output/${ISO_FILE}.sha256" | cut -d' ' -f1)
+          ISO_SIZE=$(du -h "output/${ISO_FILE}" | cut -f1)
+          
+          echo "### CozyHaze OS Build Erfolgreich! :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Datei:** \`${ISO_FILE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Größe:** \`${ISO_SIZE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **SHA-256:** \`${SHA256_HASH}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Ziel-Hardware:** Apple MacBook Pro 2011 (MacBookPro8,2 - Intel iGPU aktiv, Radeon dGPU deaktiviert)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CozyHaze-OS-2026.10-Live-ISO
+          path: output/*.iso
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload Checksums Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CozyHaze-OS-Checksums
+          path: output/*.sha*
+          retention-days: 14
+
+      - name: Upload to GitHub Release (falls getaggt)
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            output/*.iso
+            output/*.sha256
+            output/*.sha512
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,59 @@
+# CozyHaze OS Ultimate - 50-applications-everyday
+# Alltagswerkzeuge, Office, Browser, Remote-Verwaltung, PDF-Tools und Gaming
+
+# Browser & Internet
+firefox-esr
+firefox-esr-l10n-de
+chromium
+chromium-l10n
+transmission-gtk
+filezilla
+
+# Office Suite (Vollständig, Microsoft-kompatibel)
+libreoffice-writer
+libreoffice-calc
+libreoffice-impress
+libreoffice-draw
+libreoffice-math
+libreoffice-base
+libreoffice-l10n-de
+hunspell-de-de
+fonts-liberation
+fonts-crosextra-carlito
+fonts-crosextra-caladea
+
+# PDF, Scan & OCR-Werkzeuge
+evince
+pdfarranger
+simple-scan
+tesseract-ocr
+tesseract-ocr-deu
+
+# Remote-Desktop, Homelab & VPN
+remmina
+remmina-plugin-rdp
+remmina-plugin-vnc
+remmina-plugin-secret
+wireguard
+wireguard-tools
+openvpn
+network-manager-openvpn-gnome
+
+# Sicherheit & Archivierung
+keepassxc
+file-roller
+p7zip-full
+unrar-free
+zip
+unzip
+tar
+
+# Paketverwaltung
+nala
+flatpak
+
+# Gaming & Controller (RetroArch & Gamepad-Support)
+retroarch
+joystick
+jstest-gtk
+game-devices-udev

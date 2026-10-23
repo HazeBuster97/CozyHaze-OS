@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze GPU Diagnosis
+Name[de]=CozyHaze GPU- & Hardwarediagnose
+Comment=Inspect Intel HD 3000, AMD dGPU, kernel modules, and Apple GMUX
+Comment[de]=Prüft Intel HD 3000, AMD dGPU, Kernelmodule und Apple GMUX Status
+Exec=xfce4-terminal -e "/usr/local/bin/cozyhaze-gpu-diag"
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;
+Keywords=gpu;diag;intel;radeon;status;
+StartupNotify=true

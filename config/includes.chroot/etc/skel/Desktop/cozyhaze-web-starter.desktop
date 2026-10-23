@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze Web Starter
+Name[de]=CozyHaze Web-Projektstarter
+Comment=Scaffold and bootstrap React, Vue, Next.js, Django, FastAPI projects
+Comment[de]=Webprojekte für React, Vue, Next.js, Django und FastAPI anlegen
+Exec=/usr/local/bin/cozyhaze-web-starter
+Icon=applications-internet
+Terminal=false
+Categories=Development;WebDevelopment;
+Keywords=web;react;vue;nextjs;django;fastapi;starter;scaffold;
+StartupNotify=true

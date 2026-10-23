@@ -1,0 +1,69 @@
+#!/bin/sh
+# ==============================================================================
+# CozyHaze OS - Post-Installation Hook
+# Wird am Ende der Calamares-Installation im Zielsystem ausgeführt.
+# ==============================================================================
+
+set -e
+
+echo "=== CozyHaze OS: Konfiguriere Zielsystem für MacBookPro8,2 ==="
+
+# 1. Sicherstellen, dass die Verzeichnisse existieren
+mkdir -p /etc/grub.d
+mkdir -p /etc/default/grub.d
+mkdir -p /etc/modprobe.d
+mkdir -p /etc/X11/xorg.conf.d
+mkdir -p /usr/local/bin
+mkdir -p /usr/local/sbin
+mkdir -p /etc/systemd/system
+
+# 2. GMUX GRUB Hook aktivieren
+if [ -f /usr/share/cozyhaze/hardware/06_cozyhaze_gmux ]; then
+    cp -f /usr/share/cozyhaze/hardware/06_cozyhaze_gmux /etc/grub.d/06_cozyhaze_gmux
+    chmod +x /etc/grub.d/06_cozyhaze_gmux
+fi
+
+# 3. GRUB Default-Konfiguration hinterlegen
+if [ -f /usr/share/cozyhaze/hardware/cozyhaze.cfg ]; then
+    cp -f /usr/share/cozyhaze/hardware/cozyhaze.cfg /etc/default/grub.d/cozyhaze.cfg
+fi
+
+# 4. Modprobe-Konfigurationen installieren
+for conf in blacklist-radeon.conf i915.conf hid_apple.conf alsa-macbook.conf; do
+    if [ -f "/usr/share/cozyhaze/hardware/${conf}" ]; then
+        cp -f "/usr/share/cozyhaze/hardware/${conf}" "/etc/modprobe.d/${conf}"
+    fi
+done
+
+# 5. Trackpad-Konfiguration
+if [ -f /usr/share/cozyhaze/hardware/40-libinput-trackpad.conf ]; then
+    cp -f /usr/share/cozyhaze/hardware/40-libinput-trackpad.conf /etc/X11/xorg.conf.d/40-libinput-trackpad.conf
+fi
+
+# 6. MacBook Tuning Service
+if [ -f /usr/share/cozyhaze/hardware/macbook-tune.sh ]; then
+    cp -f /usr/share/cozyhaze/hardware/macbook-tune.sh /usr/local/sbin/macbook-tune.sh
+    chmod +x /usr/local/sbin/macbook-tune.sh
+fi
+if [ -f /usr/share/cozyhaze/hardware/macbook-tune.service ]; then
+    cp -f /usr/share/cozyhaze/hardware/macbook-tune.service /etc/systemd/system/macbook-tune.service
+    systemctl enable macbook-tune.service 2>/dev/null || true
+fi
+
+# 7. SSD TRIM Timer aktivieren
+systemctl enable fstrim.timer 2>/dev/null || true
+
+# 8. GRUB & Initramfs aktualisieren
+echo "=== Aktualisiere GRUB und Initramfs im Zielsystem ==="
+if command -v update-grub >/dev/null 2>&1; then
+    update-grub || true
+elif command -v grub-mkconfig >/dev/null 2>&1; then
+    grub-mkconfig -o /boot/grub/grub.cfg || true
+fi
+
+if command -v update-initramfs >/dev/null 2>&1; then
+    update-initramfs -u -k all || true
+fi
+
+echo "=== CozyHaze OS: Hardware-Absicherung abgeschlossen ==="
+exit 0

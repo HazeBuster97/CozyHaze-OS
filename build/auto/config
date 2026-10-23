@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+lb config noauto \
+    --distribution trixie \
+    --archive-areas "main contrib non-free non-free-firmware" \
+    --architectures amd64 \
+    --linux-flavours amd64 \
+    --bootloader grub-efi \
+    --uefi-secure-boot auto \
+    --binary-images iso-hybrid \
+    --iso-application "CozyHaze OS" \
+    --iso-preparer "CozyHaze OS Project" \
+    --iso-publisher "CozyHaze OS Project" \
+    --iso-volume "COZYHAZE_OS" \
+    --apt-indices true \
+    --apt-recommends true \
+    --memtest none \
+    --bootappend-live "boot=live components quiet splash i915.modeset=1 i915.lvds_channel_mode=2 i915.lvds_use_ssc=0 radeon.modeset=0 amdgpu.modeset=0 locales=de_DE.UTF-8 keyboard-layouts=de" \
+    "${@}"

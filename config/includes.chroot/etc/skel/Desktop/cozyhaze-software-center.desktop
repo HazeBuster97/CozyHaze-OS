@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze Software Center
+Name[de]=CozyHaze Software Center
+Comment=Install software profiles, packages, and Ultimate Extras
+Comment[de]=Software-Profile, Werkzeugsammlungen und Ultimate Extras installieren
+Exec=/usr/local/bin/cozyhaze-software-center
+Icon=system-software-install
+Terminal=false
+Categories=System;Settings;PackageManager;
+Keywords=software;package;profile;install;store;market;
+StartupNotify=true

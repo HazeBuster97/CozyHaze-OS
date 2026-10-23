@@ -1,0 +1,39 @@
+# CozyHaze OS - 10-hardware-macbook
+# Treiber, Firmware und Optimierungspakete speziell für MacBookPro8,2
+
+# Apple Firmware & Broadcom WLAN
+firmware-linux-free
+firmware-linux-nonfree
+firmware-misc-nonfree
+firmware-brcm80211
+broadcom-sta-dkms
+b43-fwcutter
+
+# Bluetooth
+bluez
+bluez-tools
+blueman
+
+# Audio & PipeWire (Cirrus Logic CS4206 Codec)
+alsa-utils
+pipewire
+pipewire-audio
+pipewire-alsa
+pipewire-pulse
+pipewire-jack
+wireplumber
+pavucontrol
+
+# Lüfter- & Energie-Management
+tlp
+tlp-rdw
+powertop
+thermald
+mbpfan
+lm-sensors
+
+# Display & Tastaturbeleuchtung
+brightnessctl
+xbacklight
+libinput-tools
+xserver-xorg-input-libinput

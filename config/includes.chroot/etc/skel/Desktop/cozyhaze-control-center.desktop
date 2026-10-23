@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze Control Center
+Name[de]=CozyHaze Kontrollzentrum
+GenericName=System Settings & Hardware Diagnosis
+GenericName[de]=Systemeinstellungen & Hardwarediagnose
+Comment=Hardware management, GPU switching, and optimizations for MacBook Pro 2011
+Comment[de]=Hardwareverwaltung, GPU-Umschaltung und Optimierungen für MacBook Pro 2011
+Exec=/usr/local/bin/cozyhaze-control-center
+Icon=preferences-system
+Terminal=false
+Categories=Settings;System;HardwareSettings;
+Keywords=system;settings;gpu;intel;radeon;macbook;kernel;hardware;
+StartupNotify=true

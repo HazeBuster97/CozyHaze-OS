@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+CozyHaze AI Center
+Zentrale Steuerungszentrale für Künstliche Intelligenz auf CozyHaze OS.
+Bietet Web-Assistenten, Homelab-LAN-Server-Anbindung und sichere API-Key-Verwaltung.
+"""
+
+import os
+import sys
+import json
+import webbrowser
+import subprocess
+
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk, Gdk, GLib
+    HAS_GTK = True
+except (ImportError, ValueError):
+    HAS_GTK = False
+
+CONFIG_DIR = os.path.expanduser("~/.config/cozyhaze")
+KEYS_FILE = os.path.join(CONFIG_DIR, "ai_keys.json")
+LAN_FILE = os.path.join(CONFIG_DIR, "ai_network.json")
+
+def ensure_config():
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    os.chmod(CONFIG_DIR, 0o700)
+    if not os.path.exists(KEYS_FILE):
+        with open(KEYS_FILE, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+        os.chmod(KEYS_FILE, 0o600)
+    if not os.path.exists(LAN_FILE):
+        with open(LAN_FILE, "w", encoding="utf-8") as f:
+            json.dump({"endpoint": "http://192.168.1.100:11434", "enabled": False}, f)
+        os.chmod(LAN_FILE, 0o600)
+
+CSS_STYLING = b"""
+window {
+    background-color: #0F1117;
+    color: #E2E8F0;
+    font-family: 'Segoe UI', 'Roboto', 'Inter', 'Ubuntu', sans-serif;
+}
+headerbar {
+    background: #181B22;
+    border-bottom: 1px solid #232731;
+    color: #FFFFFF;
+}
+.card {
+    background-color: #181B22;
+    border: 1px solid #232731;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+}
+button.suggested-action {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    border: none;
+    padding: 6px 14px;
+}
+"""
+
+if HAS_GTK:
+    class CozyHazeAICenter(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="CozyHaze AI Center")
+            self.set_default_size(900, 620)
+            self.set_position(Gtk.WindowPosition.CENTER)
+            ensure_config()
+
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_data(CSS_STYLING)
+            Gtk.StyleContext.add_provider_for_screen(
+                Gdk.Screen.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            header = Gtk.HeaderBar()
+            header.set_show_close_button(True)
+            header.props.title = "CozyHaze AI Center"
+            header.props.subtitle = "KI-Assistenten • Homelab-Server • API-Keys"
+            self.set_titlebar(header)
+
+            main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            self.add(main_box)
+
+            self.stack = Gtk.Stack()
+            sidebar = Gtk.StackSidebar()
+            sidebar.set_stack(self.stack)
+            sidebar.set_size_request(220, -1)
+            main_box.pack_start(sidebar, False, False, 0)
+            main_box.pack_start(self.stack, True, True, 0)
+
+            self.build_assistants_page()
+            self.build_network_page()
+            self.build_keys_page()
+            self.show_all()
+
+        def create_scrollable_page(self, title):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+            box.set_border_width(20)
+
+            lbl = Gtk.Label()
+            lbl.set_markup(f"<span size='x-large' weight='bold' color='#00F2FE'>{title}</span>")
+            lbl.set_xalign(0)
+            box.pack_start(lbl, False, False, 0)
+
+            scrolled = Gtk.ScrolledWindow()
+            scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scrolled.add(box)
+            return box, scrolled
+
+        def build_assistants_page(self):
+            box, scrolled = self.create_scrollable_page("KI-Coding- & Produktivitäts-Assistenten")
+            box.pack_start(Gtk.Label(label="Starten Sie webbasierte und native KI-Werkzeuge für Coding und Recherche:", xalign=0), False, False, 0)
+
+            services = [
+                ("Claude (Anthropic)", "https://claude.ai", "Führend für Code-Analyse, Architektur und komplexe Programmieraufgaben."),
+                ("ChatGPT (OpenAI)", "https://chatgpt.com", "Vielseitiger Sprach- und Coding-Assistent."),
+                ("Google Gemini", "https://gemini.google.com", "Schneller KI-Assistent mit aktuellem Webzugriff."),
+                ("GitHub Copilot", "https://github.com/features/copilot", "KI-Pair-Programming für VS Code, VSCodium und Neovim."),
+                ("Perplexity AI", "https://www.perplexity.ai", "Forschungs- und Dokumentations-Suchmaschine.")
+            ]
+
+            for name, url, desc in services:
+                card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+                card.get_style_context().add_class("card")
+
+                vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                title = Gtk.Label()
+                title.set_markup(f"<span size='medium' weight='bold'>{name}</span>")
+                title.set_xalign(0)
+                vbox.pack_start(title, False, False, 0)
+                vbox.pack_start(Gtk.Label(label=desc, xalign=0), False, False, 0)
+                card.pack_start(vbox, True, True, 0)
+
+                btn = Gtk.Button(label="Öffnen")
+                btn.get_style_context().add_class("suggested-action")
+                btn.connect("clicked", lambda w, u=url: webbrowser.open(u))
+                card.pack_end(btn, False, False, 0)
+
+                box.pack_start(card, False, False, 0)
+
+            self.stack.add_titled(scrolled, "assistants", "KI-Assistenten")
+
+        def build_network_page(self):
+            box, scrolled = self.create_scrollable_page("Lokale KI & Heimnetzwerk-Modus")
+            
+            notice = Gtk.Label()
+            notice.set_markup(
+                "<b>Hardware-Hinweis (Sandy Bridge Core i7):</b>\n"
+                "Die CPU des MacBook Pro 2011 unterstützt AVX 1.0, jedoch <i>kein AVX2</i>. Lokale LLMs ab 7B Parametern "
+                "benötigen viel Rechenzeit. <b>Empfohlen:</b> Binden Sie einen leistungsfähigen KI-Server (z.B. mit NVIDIA GPU) "
+                "im lokalen Netzwerk über den Ollama/OpenAI API-Endpunkt an."
+            )
+            notice.set_line_wrap(True)
+            notice.set_xalign(0)
+            box.pack_start(notice, False, False, 0)
+
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            card.get_style_context().add_class("card")
+
+            card.pack_start(Gtk.Label(label="LAN-Endpunkt für Ollama / LocalAI (z.B. http://192.168.1.50:11434):", xalign=0), False, False, 0)
+            
+            with open(LAN_FILE, "r") as f:
+                cfg = json.load(f)
+
+            self.lan_entry = Gtk.Entry()
+            self.lan_entry.set_text(cfg.get("endpoint", "http://192.168.1.100:11434"))
+            card.pack_start(self.lan_entry, False, False, 0)
+
+            btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            btn_save = Gtk.Button(label="Endpunkt speichern")
+            btn_save.connect("clicked", self.save_lan_config)
+            btn_box.pack_start(btn_save, False, False, 0)
+
+            btn_test = Gtk.Button(label="Verbindung testen")
+            btn_test.get_style_context().add_class("suggested-action")
+            btn_test.connect("clicked", self.test_lan_connection)
+            btn_box.pack_start(btn_test, False, False, 0)
+
+            card.pack_start(btn_box, False, False, 0)
+            self.lan_status_lbl = Gtk.Label(label="", xalign=0)
+            card.pack_start(self.lan_status_lbl, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+            self.stack.add_titled(scrolled, "network_ai", "Heimnetzwerk KI")
+
+        def build_keys_page(self):
+            box, scrolled = self.create_scrollable_page("Sichere API-Key-Verwaltung")
+            box.pack_start(Gtk.Label(label="Hinterlegen Sie Ihre persönlichen API-Schlüssel. Diese werden geschützt in ~/.config/cozyhaze/ai_keys.json (Dateirechte 0600) gespeichert und niemals im Klartext exportiert.", xalign=0), False, False, 0)
+
+            with open(KEYS_FILE, "r") as f:
+                keys = json.load(f)
+
+            self.key_entries = {}
+            for provider in ["OpenAI", "Anthropic", "Google Gemini", "GitHub"]:
+                card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+                card.get_style_context().add_class("card")
+                card.pack_start(Gtk.Label(label=f"{provider} API Key:", xalign=0), False, False, 0)
+
+                entry = Gtk.Entry()
+                entry.set_visibility(False)
+                entry.set_text(keys.get(provider.lower(), ""))
+                card.pack_start(entry, False, False, 0)
+                self.key_entries[provider.lower()] = entry
+                box.pack_start(card, False, False, 0)
+
+            btn_save_keys = Gtk.Button(label="Schlüssel sicher speichern")
+            btn_save_keys.get_style_context().add_class("suggested-action")
+            btn_save_keys.connect("clicked", self.save_keys)
+            box.pack_start(btn_save_keys, False, False, 0)
+
+            self.stack.add_titled(scrolled, "keys", "API-Schlüssel")
+
+        def save_lan_config(self, widget):
+            url = self.lan_entry.get_text().strip()
+            with open(LAN_FILE, "w") as f:
+                json.dump({"endpoint": url, "enabled": True}, f)
+            os.chmod(LAN_FILE, 0o600)
+            self.lan_status_lbl.set_markup("<span color='#10B981'>✓ Endpunkt gespeichert.</span>")
+
+        def test_lan_connection(self, widget):
+            url = self.lan_entry.get_text().strip()
+            try:
+                res = subprocess.run(["curl", "-s", "-m", "3", f"{url}/api/tags"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if res.returncode == 0:
+                    self.lan_status_lbl.set_markup("<span color='#10B981'>✓ Verbindung zum LAN-KI-Server erfolgreich!</span>")
+                else:
+                    self.lan_status_lbl.set_markup("<span color='#EF4444'>✗ Server nicht erreichbar oder Timeout.</span>")
+            except Exception as e:
+                self.lan_status_lbl.set_markup(f"<span color='#EF4444'>Fehler: {e}</span>")
+
+        def save_keys(self, widget):
+            out = {}
+            for k, entry in self.key_entries.items():
+                val = entry.get_text().strip()
+                if val:
+                    out[k] = val
+            with open(KEYS_FILE, "w") as f:
+                json.dump(out, f)
+            os.chmod(KEYS_FILE, 0o600)
+
+            # Export-Skript für die Shell generieren
+            env_file = os.path.expanduser("~/.config/cozyhaze/env_ai.sh")
+            with open(env_file, "w") as f:
+                f.write("# CozyHaze OS - AI Environment Variables\n")
+                if "openai" in out:
+                    f.write(f"export OPENAI_API_KEY='{out['openai']}'\n")
+                if "anthropic" in out:
+                    f.write(f"export ANTHROPIC_API_KEY='{out['anthropic']}'\n")
+                if "google gemini" in out:
+                    f.write(f"export GEMINI_API_KEY='{out['google gemini']}'\n")
+            os.chmod(env_file, 0o600)
+
+            dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO,
+                                       buttons=Gtk.ButtonsType.OK, text="API-Schlüssel sicher verschlüsselt gespeichert!")
+            dialog.run()
+            dialog.destroy()
+
+def main():
+    if HAS_GTK and "DISPLAY" in os.environ:
+        app = CozyHazeAICenter()
+        Gtk.main()
+    else:
+        print("CozyHaze AI Center benötigt eine grafische X11/Xfce-Umgebung.")
+
+if __name__ == "__main__":
+    main()

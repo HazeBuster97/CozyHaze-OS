@@ -1,0 +1,99 @@
+# CozyHaze OS Ultimate - 30-development
+# Umfassende Entwicklungs-Toolchains, Compiler, Laufzeitumgebungen und Editoren
+
+# C/C++ Compiler & Build-Tools
+build-essential
+gcc
+g++
+make
+cmake
+ninja-build
+gdb
+valgrind
+clang
+llvm
+pkg-config
+autoconf
+automake
+libtool
+
+# Rust & Go
+rustc
+cargo
+golang-go
+
+# Java & JVM
+default-jdk
+
+# PHP & Lua
+php-cli
+php-common
+php-curl
+php-mbstring
+php-xml
+php-sqlite3
+lua5.4
+
+# Python Stack
+python3
+python3-pip
+python3-venv
+python3-dev
+python3-setuptools
+python3-wheel
+python3-requests
+python3-gi
+python3-gi-cairo
+gir1.2-gtk-3.0
+pipx
+
+# Node.js & Webentwicklung
+nodejs
+npm
+
+# Versionskontrolle, Diffs & Tools
+git
+git-lfs
+git-gui
+meld
+gh
+curl
+wget
+jq
+tmux
+htop
+btop
+neofetch
+
+# Editoren & IDEs (Core)
+geany
+geany-plugins
+neovim
+vim
+nano
+
+# Datenbank & SSH
+sqlite3
+libsqlite3-dev
+openssh-client
+openssh-server
+rsync
+
+# Container & Homelab
+docker.io
+docker-compose
+podman
+
+# Bibliotheken für Headless-Browser & Playwright
+libnss3
+libatk1.0-0
+libatk-bridge2.0-0
+libcups2
+libdrm2
+libxcomposite1
+libxdamage1
+libxfixes3
+libxrandr2
+libgbm1
+libasound2
+libxshmfence1

@@ -1,0 +1,39 @@
+# CozyHaze OS Ultimate - 35-cybersecurity
+# Werkzeuge für autorisierte Netzwerkanalyse, IT-Sicherheit, Forensik und Audits
+
+# Netzwerk- und Protokollanalyse
+nmap
+wireshark
+tshark
+tcpdump
+netcat-traditional
+mtr-tiny
+dnsutils
+whois
+iperf3
+openssl
+socat
+traceroute
+
+# Web-Sicherheitsanalyse & Scans
+nikto
+
+# Sicherheits-Auditing & Malware-Scan
+lynis
+clamav
+clamav-freshclam
+rkhunter
+
+# Forensik, Datenrettung & Binäranalyse
+testdisk
+foremost
+binutils
+hexedit
+
+# Passwortsicherheit & Kryptografie (für legale Audits)
+aircrack-ng
+hydra
+john
+keepassxc
+gnupg
+gpgv

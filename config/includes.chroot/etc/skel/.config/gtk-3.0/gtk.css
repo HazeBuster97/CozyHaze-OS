@@ -1,0 +1,124 @@
+/* ==============================================================================
+   CozyHaze Dark Neon - Globales GTK3 Design für Xfce Desktop
+   Windows-11-inspiriert mit dezenten Neon-Cyan (#00F2FE) & Neon-Grün (#00E676) Akzenten
+   ============================================================================== */
+
+@define-color ch_bg_dark #0F1117;
+@define-color ch_bg_card #181B22;
+@define-color ch_bg_panel #12151B;
+@define-color ch_border #232731;
+@define-color ch_cyan #00F2FE;
+@define-color ch_green #00E676;
+@define-color ch_text #E2E8F0;
+@define-color ch_text_muted #94A3B8;
+
+/* Basis-Fenster */
+window, dialog {
+    background-color: @ch_bg_dark;
+    color: @ch_text;
+}
+
+/* Xfce4 Panel (Elegante Windows-11-inspirierte Taskleiste) */
+.xfce4-panel {
+    background-color: alpha(@ch_bg_panel, 0.94);
+    border-top: 1px solid @ch_border;
+    color: @ch_text;
+    font-weight: 500;
+}
+
+/* Taskleisten-Schaltflächen */
+.xfce4-panel button {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    margin: 2px 3px;
+    padding: 4px 8px;
+    color: @ch_text;
+    transition: all 150ms ease-in-out;
+}
+
+.xfce4-panel button:hover {
+    background-color: alpha(@ch_card, 0.8);
+    border-bottom: 2px solid @ch_cyan;
+}
+
+.xfce4-panel button:checked,
+.xfce4-panel button:active {
+    background-color: #1E293B;
+    border-bottom: 2px solid @ch_cyan;
+    color: @ch_cyan;
+}
+
+/* Whisker Menu (Modernes zentriertes Anwendungsmenü) */
+#whiskermenu-window {
+    background-color: alpha(@ch_bg_card, 0.97);
+    border: 1px solid @ch_border;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    padding: 10px;
+}
+
+#whiskermenu-window entry {
+    background-color: #0F1117;
+    border: 1px solid @ch_border;
+    border-radius: 8px;
+    color: @ch_text;
+    padding: 8px 12px;
+    font-size: 14px;
+}
+
+#whiskermenu-window entry:focus {
+    border-color: @ch_cyan;
+    box-shadow: 0 0 8px alpha(@ch_cyan, 0.3);
+}
+
+#whiskermenu-window treeview {
+    background-color: transparent;
+    color: @ch_text;
+}
+
+#whiskermenu-window treeview:selected {
+    background: linear-gradient(90deg, #1E293B, #121824);
+    color: @ch_cyan;
+    border-radius: 6px;
+}
+
+/* Scrollbars & Schieberegler */
+scrollbar slider {
+    background-color: #334155;
+    border-radius: 4px;
+    min-width: 6px;
+    min-height: 6px;
+}
+
+scrollbar slider:hover {
+    background-color: @ch_cyan;
+}
+
+/* Kontextmenüs & Popups */
+menu {
+    background-color: alpha(@ch_bg_card, 0.98);
+    border: 1px solid @ch_border;
+    border-radius: 8px;
+    padding: 6px;
+    color: @ch_text;
+}
+
+menu menuitem {
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+menu menuitem:hover {
+    background: linear-gradient(90deg, #1E293B, #141A26);
+    color: @ch_cyan;
+}
+
+/* Tooltips */
+tooltip {
+    background-color: #1E293B;
+    border: 1px solid @ch_border;
+    border-radius: 6px;
+    color: @ch_text;
+    padding: 6px 10px;
+}

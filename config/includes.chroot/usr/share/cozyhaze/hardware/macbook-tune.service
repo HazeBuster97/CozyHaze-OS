@@ -1,0 +1,12 @@
+[Unit]
+Description=CozyHaze OS MacBookPro8,2 Hardware & Power Tuning
+After=systemd-modules-load.service local-fs.target
+ConditionVirtualization=false
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/macbook-tune.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,93 @@
+{
+  "extras": [
+    {
+      "id": "vscodium",
+      "name": "VSCodium",
+      "category": "Entwicklung",
+      "description": "Vollständig kompatible Open-Source-Alternative zu Visual Studio Code ohne Telemetrie.",
+      "install_type": "flatpak_or_apt",
+      "flatpak_id": "com.vscodium.codium",
+      "apt_pkg": "codium",
+      "hw_compat": "Volle Kompatibilität mit Intel Sandy Bridge & HD 3000 ✓"
+    },
+    {
+      "id": "jupyterlab",
+      "name": "JupyterLab",
+      "category": "KI & Datenanalyse",
+      "description": "Moderne Weboberfläche für interaktives Coding, Python Data Science und KI-Notebooks.",
+      "install_type": "pipx",
+      "cmd": "pipx install jupyterlab",
+      "hw_compat": "Volle Kompatibilität (16 GB RAM optimal für Notebooks) ✓"
+    },
+    {
+      "id": "dbeaver-ce",
+      "name": "DBeaver Community",
+      "category": "Datenbanken",
+      "description": "Universelles Datenbankwerkzeug für SQLite, PostgreSQL, MySQL, MariaDB und Redis.",
+      "install_type": "flatpak_or_deb",
+      "flatpak_id": "io.dbeaver.DBeaverCommunity",
+      "hw_compat": "Java-basiert, läuft stabil auf Core i7 ✓"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama (Lokale KI & Netzwerk-Client)",
+      "category": "Künstliche Intelligenz",
+      "description": "Ausführung kleiner quantisierter Modelle oder Client-Anbindung an potente KI-Server im Heimnetzwerk.",
+      "install_type": "script",
+      "hw_compat": "Hinweis: Lokale CPU-Inferenz nutzt AVX1; empfohlen wird die Anbindung an Netzwerk-Server im LAN."
+    },
+    {
+      "id": "thunderbird",
+      "name": "Mozilla Thunderbird",
+      "category": "Kommunikation",
+      "description": "Professioneller E-Mail-, Kalender- und Adressbuch-Client mit PGP-Verschlüsselung.",
+      "install_type": "apt",
+      "apt_pkg": "thunderbird",
+      "hw_compat": "Volle Kompatibilität ✓"
+    },
+    {
+      "id": "handbrake",
+      "name": "HandBrake",
+      "category": "Multimedia",
+      "description": "Leistungsfähiger Open-Source-Videokonverter für MP4, MKV und H.264/H.265.",
+      "install_type": "apt",
+      "apt_pkg": "handbrake",
+      "hw_compat": "Nutzt Multithreading der Intel Core i7 CPU optimal aus ✓"
+    },
+    {
+      "id": "krita",
+      "name": "Krita",
+      "category": "Grafik",
+      "description": "Professionelles Mal- und Illustrationsprogramm für digitale Künstler.",
+      "install_type": "apt",
+      "apt_pkg": "krita",
+      "hw_compat": "Läuft über OpenGL 3.3 Canvas auf Intel HD 3000 ✓"
+    },
+    {
+      "id": "steam",
+      "name": "Steam Client",
+      "category": "Gaming",
+      "description": "Zugriff auf native Linux-Spiele (OpenGL 3.3 kompatibel).",
+      "install_type": "apt_multiarch",
+      "apt_pkg": "steam-installer",
+      "hw_compat": "Hinweis: Keine Unterstützung für moderne Vulkan/DXVK Titel; ältere Linux-Spiele laufen gut."
+    },
+    {
+      "id": "zaproxy",
+      "name": "OWASP ZAP",
+      "category": "Cybersecurity",
+      "description": "Führender Open-Source Web-Application Security Scanner für autorisierte Sicherheitstests.",
+      "install_type": "flatpak",
+      "flatpak_id": "org.zaproxy.ZAP",
+      "hw_compat": "Volle Kompatibilität mit OpenJDK ✓"
+    },
+    {
+      "id": "burpsuite-community",
+      "name": "Burp Suite Community",
+      "category": "Cybersecurity",
+      "description": "Werkzeugkasten für Sicherheitsüberprüfungen von Webanwendungen.",
+      "install_type": "installer_sh",
+      "hw_compat": "Volle Kompatibilität (Java) ✓"
+    }
+  ]
+}

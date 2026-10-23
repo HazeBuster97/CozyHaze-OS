@@ -1,0 +1,61 @@
+# CozyHaze OS Ultimate - 00-base-system
+# Grundlegendes Betriebssystem, Kernel, Dateisysteme, Sicherheit und Live-Boot-Infrastruktur
+
+# Kernel & Firmware
+linux-image-amd64
+linux-headers-amd64
+intel-microcode
+
+# Live-System Init
+live-boot
+live-config
+live-config-systemd
+user-setup
+sudo
+
+# Dateisysteme & Festplattenwerkzeuge
+btrfs-progs
+e2fsprogs
+dosfstools
+mtools
+ntfs-3g
+exfat-fuse
+parted
+gdisk
+fdisk
+efibootmgr
+xfsprogs
+
+# Init & Hardware-Verwaltung
+systemd
+systemd-sysv
+systemd-timesyncd
+udev
+pciutils
+usbutils
+lshw
+hwinfo
+dmidecode
+acpi
+acpid
+
+# Netzwerk-Basiskomponenten
+network-manager
+iproute2
+iputils-ping
+net-tools
+curl
+wget
+ca-certificates
+gnupg
+
+# Systemsicherheit & Härtung
+ufw
+apparmor
+apparmor-utils
+auditd
+libcap2-bin
+
+# Performance & Speicher
+zram-tools
+haveged

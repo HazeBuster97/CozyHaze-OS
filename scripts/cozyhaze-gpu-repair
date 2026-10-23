@@ -1,0 +1,325 @@
+#!/bin/bash
+# ==============================================================================
+# CozyHaze OS - Interaktives GPU-Reparaturwerkzeug für MacBookPro8,2
+# Sichere Konfiguration der Intel HD 3000 Umschaltung & Apple EFI-Variablen
+# ==============================================================================
+
+set -euo pipefail
+
+# ANSI-Farben
+C_RESET="\033[0m"
+C_BOLD="\033[1m"
+C_CYAN="\033[36m"
+C_GREEN="\033[32m"
+C_YELLOW="\033[33m"
+C_RED="\033[31m"
+C_GRAY="\033[90m"
+
+EFIVARS_DIR="/sys/firmware/efi/efivars"
+GPU_PREF_NAME="gpu-power-prefs-fa4ce28d-b62f-4c99-9cc3-6815686e30f9"
+GPU_PREF_PATH="${EFIVARS_DIR}/${GPU_PREF_NAME}"
+BACKUP_DIR="/var/backups/cozyhaze-efivars"
+
+print_banner() {
+    clear 2>/dev/null || true
+    echo -e "${C_CYAN}${C_BOLD}===================================================================${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}     CozyHaze OS - Intel GPU Reparaturwerkzeug (MacBookPro8,2)     ${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}===================================================================${C_RESET}"
+    echo -e "${C_GRAY}Ziel: Deaktivierung der defekten AMD GPU & Erzwingen der Intel HD 3000${C_RESET}\n"
+}
+
+require_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${C_RED}[FEHLER] Dieses Werkzeug benötigt Root-Rechte.${C_RESET}"
+        echo -e "Bitte starten Sie es mit: ${C_BOLD}sudo cozyhaze-gpu-repair${C_RESET}"
+        exit 1
+    fi
+}
+
+check_efivarfs() {
+    if [ ! -d "$EFIVARS_DIR" ]; then
+        echo -e "${C_YELLOW}[HINWEIS] /sys/firmware/efi/efivars ist nicht verfügbar.${C_RESET}"
+        echo -e "Versuche, efivarfs zu mounten..."
+        if mount -t efivarfs efivarfs "$EFIVARS_DIR" 2>/dev/null; then
+            echo -e "${C_GREEN}✓ efivarfs erfolgreich gemountet.${C_RESET}"
+        else
+            echo -e "${C_RED}[WARNUNG] efivarfs konnte nicht gemountet werden.${C_RESET}"
+            echo -e "Wurde das System im UEFI-Modus gestartet? (Prüfen Sie /sys/firmware/efi)"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+backup_efivar() {
+    mkdir -p "$BACKUP_DIR"
+    local timestamp
+    timestamp=$(date '+%Y%m%d_%H%M%S')
+    local backup_target="${BACKUP_DIR}/gpu-power-prefs_${timestamp}.bin"
+
+    if [ -f "$GPU_PREF_PATH" ]; then
+        cp -a "$GPU_PREF_PATH" "$backup_target"
+        echo -e "${C_GREEN}✓ Existierende EFI-Variable gesichert nach:${C_RESET}"
+        echo -e "  ${C_CYAN}${backup_target}${C_RESET}"
+        # Auch als 'latest' verlinken oder kopieren
+        cp -f "$GPU_PREF_PATH" "${BACKUP_DIR}/gpu-power-prefs_latest.bin"
+    else
+        echo -e "${C_GRAY}Keine existierende gpu-power-prefs Variable gefunden. Backup-Notiz erstellt.${C_RESET}"
+        echo "NON_EXISTENT_AT_${timestamp}" > "${BACKUP_DIR}/gpu-power-prefs_${timestamp}_empty.txt"
+    fi
+}
+
+inspect_status() {
+    echo -e "\n${C_BOLD}--- Aktueller Hardware- & GPU-Status ---${C_RESET}"
+    if [ -f "$GPU_PREF_PATH" ]; then
+        echo -e "  EFI-Variable      : ${C_GREEN}Vorhanden${C_RESET}"
+        local byte5
+        byte5=$(tail -c +5 "$GPU_PREF_PATH" 2>/dev/null | head -c 1 | od -An -tu1 2>/dev/null | tr -d ' ' || echo "")
+        if [ "$byte5" = "1" ]; then
+            echo -e "  Konfigurierter Modus: ${C_GREEN}Intel HD 3000 iGPU erzwungen (0x01)${C_RESET}"
+        elif [ "$byte5" = "0" ]; then
+            echo -e "  Konfigurierter Modus: ${C_RED}AMD dGPU (0x00) - GEFÄHRDET BEI DEFEKT${C_RESET}"
+        else
+            echo -e "  Konfigurierter Modus: ${C_YELLOW}Unbekannt / Unvollständig (${byte5})${C_RESET}"
+        fi
+    else
+        echo -e "  EFI-Variable      : ${C_YELLOW}Nicht gesetzt (Apple Default = AMD dGPU)${C_RESET}"
+    fi
+
+    echo -e "  Geladene Module   :"
+    echo -e "    - i915 (Intel)  : $(lsmod | grep -q '^i915 ' && echo -e "${C_GREEN}Geladen${C_RESET}" || echo -e "${C_YELLOW}Nicht geladen${C_RESET}")"
+    echo -e "    - radeon (AMD)  : $(lsmod | grep -q '^radeon ' && echo -e "${C_RED}GELADEN (Defekt droht)${C_RESET}" || echo -e "${C_GREEN}Blockiert${C_RESET}")"
+    echo -e "    - amdgpu (AMD)  : $(lsmod | grep -q '^amdgpu ' && echo -e "${C_RED}GELADEN${C_RESET}" || echo -e "${C_GREEN}Blockiert${C_RESET}")"
+    
+    echo -e "\nDrücken Sie [ENTER], um zum Menü zurückzukehren..."
+    read -r _
+}
+
+set_intel_gpu_efi() {
+    echo -e "\n${C_BOLD}${C_YELLOW}================ SICHERHEITSHINWEIS ================${C_RESET}"
+    echo -e "Dieser Vorgang setzt die Apple-EFI-Variable ${C_BOLD}gpu-power-prefs${C_RESET},"
+    echo -e "sodass die Firmware das MacBook fest auf die interne ${C_BOLD}Intel HD 3000${C_RESET} schaltet."
+    echo -e "Dadurch bleibt die defekte AMD Radeon GPU hardwareseitig deaktiviert."
+    echo -e "${C_YELLOW}Es wird zuvor automatisch eine vollständige Sicherung erstellt.${C_RESET}"
+    echo -e "${C_BOLD}====================================================${C_RESET}\n"
+
+    echo -ne "Möchten Sie fortfahren? Bitte tippen Sie ${C_BOLD}'JA'${C_RESET} zur Bestätigung: "
+    read -r confirmation
+
+    if [ "$confirmation" != "JA" ] && [ "$confirmation" != "ja" ]; then
+        echo -e "\n${C_YELLOW}Vorgang abgebrochen. Es wurden keine Änderungen vorgenommen.${C_RESET}"
+        sleep 2
+        return
+    fi
+
+    check_efivarfs || return 1
+
+    echo -e "\n[1/4] Erstelle Sicherheits-Backup..."
+    backup_efivar
+
+    echo -e "[2/4] Entferne Schreibschutz-Flag (chattr -i)..."
+    if [ -f "$GPU_PREF_PATH" ]; then
+        chattr -i "$GPU_PREF_PATH" 2>/dev/null || true
+    fi
+
+    echo -e "[3/4] Schreibe gpu-power-prefs (Intel iGPU Modus = 0x01)..."
+    # Format für efivarfs: 4 Bytes Attribute (0x07 = NON_VOLATILE | BOOTSERVICE_ACCESS | RUNTIME_ACCESS)
+    # gefolgt von 4 Bytes Payload (\x01\x00\x00\x00)
+    if printf "\x07\x00\x00\x00\x01\x00\x00\x00" > "$GPU_PREF_PATH" 2>/dev/null; then
+        echo -e "${C_GREEN}✓ EFI-Variable erfolgreich geschrieben.${C_RESET}"
+    else
+        echo -e "${C_RED}[FEHLER] Schreiben auf ${GPU_PREF_PATH} fehlgeschlagen.${C_RESET}"
+        echo -e "Prüfen Sie, ob das Dateisystem als 'ro' gemountet ist: mount -o remount,rw /sys/firmware/efi/efivars"
+        return 1
+    fi
+
+    echo -e "[4/4] Verifiziere geschriebenen Wert..."
+    local byte5
+    byte5=$(tail -c +5 "$GPU_PREF_PATH" 2>/dev/null | head -c 1 | od -An -tu1 2>/dev/null | tr -d ' ' || echo "")
+    if [ "$byte5" = "1" ]; then
+        echo -e "${C_GREEN}${C_BOLD}✓ ERFOLG: Intel HD 3000 ist nun dauerhaft im EFI als primäre GPU hinterlegt!${C_RESET}"
+    else
+        echo -e "${C_YELLOW}! Warnung: Verifikation ergab unerwarteten Wert ($byte5).${C_RESET}"
+    fi
+
+    echo -e "\nDrücken Sie [ENTER]..."
+    read -r _
+}
+
+restore_backup() {
+    echo -e "\n${C_BOLD}--- Vorhandene EFI-Backups ---${C_RESET}"
+    if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]; then
+        echo -e "${C_YELLOW}Keine Backups unter ${BACKUP_DIR} gefunden.${C_RESET}"
+        sleep 2
+        return
+    fi
+
+    ls -lh "$BACKUP_DIR"
+    echo ""
+    echo -ne "Geben Sie den Dateinamen des Backups ein (oder 'abbrechen'): "
+    read -r fname
+
+    if [ "$fname" = "abbrechen" ] || [ -z "$fname" ]; then
+        return
+    fi
+
+    local fpath="${BACKUP_DIR}/${fname}"
+    if [ ! -f "$fpath" ]; then
+        echo -e "${C_RED}Datei nicht gefunden: $fpath${C_RESET}"
+        sleep 2
+        return
+    fi
+
+    echo -ne "Backup wirklich wiederherstellen? [j/N]: "
+    read -r confirm
+    if [[ "$confirm" =~ ^[jJyY]$ ]]; then
+        check_efivarfs || return 1
+        if [ -f "$GPU_PREF_PATH" ]; then
+            chattr -i "$GPU_PREF_PATH" 2>/dev/null || true
+        fi
+        cp -f "$fpath" "$GPU_PREF_PATH"
+        echo -e "${C_GREEN}✓ Backup wiederhergestellt.${C_RESET}"
+    else
+        echo -e "${C_YELLOW}Abgebrochen.${C_RESET}"
+    fi
+    sleep 2
+}
+
+install_grub_permanent_fix() {
+    echo -e "\n${C_BOLD}--- Dauerhafte Absicherung in GRUB & Kernel einrichten ---${C_RESET}"
+    echo -e "Dieser Schritt stellt sicher, dass:"
+    echo -e "1. Das GMUX-Hardware-Umschaltskript in /etc/grub.d/06_cozyhaze_gmux aktiv ist."
+    echo -e "2. Die Kernel-Parameter (i915.lvds_channel_mode=2, radeon.modeset=0) in /etc/default/grub.d/ hinterlegt sind."
+    echo -e "3. Die AMD Treiber-Blacklist in /etc/modprobe.d/blacklist-radeon.conf greift."
+    echo -e "4. 'update-grub' und 'update-initramfs' ausgeführt werden.\n"
+
+    echo -ne "Jetzt dauerhaft einrichten? [j/N]: "
+    read -r confirm
+    if ! [[ "$confirm" =~ ^[jJyY]$ ]]; then
+        return
+    fi
+
+    # 1. Modprobe Blacklist kopieren
+    echo -e "[1/4] Installiere /etc/modprobe.d/blacklist-radeon.conf..."
+    cat << 'EOF' > /etc/modprobe.d/blacklist-radeon.conf
+# CozyHaze OS - Blockierung defekter AMD GPU
+blacklist radeon
+blacklist amdgpu
+install radeon /bin/true
+install amdgpu /bin/true
+options radeon modeset=0
+options amdgpu modeset=0
+EOF
+
+    # 2. i915 Optimierung
+    echo -e "[2/4] Installiere /etc/modprobe.d/i915.conf..."
+    cat << 'EOF' > /etc/modprobe.d/i915.conf
+# CozyHaze OS - Intel HD 3000 LVDS
+options i915 modeset=1 lvds_channel_mode=2 lvds_use_ssc=0 enable_rc6=1 enable_fbc=1 fastboot=1
+EOF
+
+    # 3. GRUB GMUX Hook
+    echo -e "[3/4] Installiere /etc/grub.d/06_cozyhaze_gmux..."
+    cat << 'EOF' > /etc/grub.d/06_cozyhaze_gmux
+#!/bin/sh
+set -e
+cat << 'OUTB_EOF'
+# --- CozyHaze OS: GMUX Intel Switch & AMD Poweroff ---
+if [ "${grub_platform}" = "efi" ] || [ "${grub_platform}" = "pc" ]; then
+    outb 0x728 1
+    outb 0x710 2
+    outb 0x740 2
+    outb 0x750 0
+fi
+OUTB_EOF
+exit 0
+EOF
+    chmod +x /etc/grub.d/06_cozyhaze_gmux
+
+    # 4. GRUB defaults
+    mkdir -p /etc/default/grub.d
+    cat << 'EOF' > /etc/default/grub.d/cozyhaze.cfg
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash i915.modeset=1 i915.lvds_channel_mode=2 i915.lvds_use_ssc=0 radeon.modeset=0 amdgpu.modeset=0"
+GRUB_DISABLE_OS_PROBER=false
+EOF
+
+    echo -e "[4/4] Aktualisiere Bootloader (update-grub)..."
+    if command -v update-grub >/dev/null 2>&1; then
+        update-grub
+    elif command -v grub-mkconfig >/dev/null 2>&1; then
+        grub-mkconfig -o /boot/grub/grub.cfg
+    fi
+
+    if command -v update-initramfs >/dev/null 2>&1; then
+        echo "Aktualisiere Initramfs..."
+        update-initramfs -u -k all
+    fi
+
+    echo -e "\n${C_GREEN}${C_BOLD}✓ Dauerhafte Absicherung erfolgreich installiert!${C_RESET}"
+    echo -e "Die Umschaltung bleibt auch nach Kernel-Updates erhalten."
+    echo -e "\nDrücken Sie [ENTER]..."
+    read -r _
+}
+
+show_rescue_guide() {
+    echo -e "\n${C_BOLD}${C_CYAN}================ ANLEITUNG: RETTUNG BEI SCHWARZEM BILDSCHIRM ================${C_RESET}"
+    echo -e "Sollte das MacBook nach einem Firmware-Reset (PRAM/NVRAM) oder fehlerhaftem"
+    echo -e "Booten mit einem grauen oder schwarzen Bildschirm hängen bleiben:\n"
+    echo -e "${C_BOLD}1. Notfall-Boot mit nomodeset:${C_RESET}"
+    echo -e "   - Schalten Sie das MacBook ein."
+    echo -e "   - Halten Sie im Bootmenü die Taste [E] auf dem 'CozyHaze OS' Eintrag gedrückt."
+    echo -e "   - Suchen Sie die Zeile beginnend mit 'linux' und fügen Sie am Ende ein:"
+    echo -e "     ${C_CYAN}nomodeset radeon.modeset=0${C_RESET}"
+    echo -e "   - Drücken Sie [F10] oder [Strg]+[X] zum Booten."
+    echo -e "   - Das System startet nun mit CPU-Software-Rendering und erlaubt die Reparatur.\n"
+    echo -e "${C_BOLD}2. Hardware-GMUX Direktumschaltung in GRUB:${C_RESET}"
+    echo -e "   - Drücken Sie im GRUB-Menü die Taste [C] für die GRUB-Befehlszeile."
+    echo -e "   - Geben Sie nacheinander folgende Befehle ein:"
+    echo -e "     ${C_CYAN}outb 0x728 1${C_RESET}"
+    echo -e "     ${C_CYAN}outb 0x710 2${C_RESET}"
+    echo -e "     ${C_CYAN}outb 0x740 2${C_RESET}"
+    echo -e "     ${C_CYAN}outb 0x750 0${C_RESET}"
+    echo -e "   - Tippen Sie 'exit' ein und starten Sie CozyHaze OS normal.\n"
+    echo -e "${C_BOLD}3. Apple NVRAM / PRAM Reset:${C_RESET}"
+    echo -e "   - Tastenkombination beim Einschalten: [Cmd] + [Opt] + [P] + [R] (mindestens 2 Startgongs)."
+    echo -e "   - Hinweis: Der NVRAM-Reset löscht gpu-power-prefs; CozyHaze OS fängt dies"
+    echo -e "     automatisch über die GRUB-GMUX-Ports ab.\n"
+    echo -e "Drücken Sie [ENTER], um zum Menü zurückzukehren..."
+    read -r _
+}
+
+# Hauptmenü-Schleife
+main_menu() {
+    require_root
+    while true; do
+        print_banner
+        echo -e "${C_BOLD}Hauptmenü:${C_RESET}"
+        echo -e "  ${C_CYAN}1)${C_RESET} Status prüfen (EFI, Kernelmodule & GMUX)"
+        echo -e "  ${C_CYAN}2)${C_RESET} Intel HD 3000 in Apple-EFI erzwingen (gpu-power-prefs -> 0x01)"
+        echo -e "  ${C_CYAN}3)${C_RESET} EFI-Sicherung wiederherstellen"
+        echo -e "  ${C_CYAN}4)${C_RESET} GRUB GMUX-Umschaltung & AMD-Blacklist dauerhaft installieren"
+        echo -e "  ${C_CYAN}5)${C_RESET} Rettungsanleitung bei schwarzem Bildschirm anzeigen"
+        echo -e "  ${C_CYAN}6)${C_RESET} Beenden"
+        echo ""
+        echo -ne "Auswahl [1-6]: "
+        read -r choice
+
+        case "$choice" in
+            1) inspect_status ;;
+            2) set_intel_gpu_efi ;;
+            3) restore_backup ;;
+            4) install_grub_permanent_fix ;;
+            5) show_rescue_guide ;;
+            6) 
+                echo -e "\n${C_GREEN}CozyHaze GPU-Reparatur beendet.${C_RESET}"
+                exit 0
+                ;;
+            *)
+                echo -e "${C_RED}Ungültige Auswahl.${C_RESET}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+main_menu

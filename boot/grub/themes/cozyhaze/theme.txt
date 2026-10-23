@@ -1,0 +1,57 @@
+# CozyHaze OS - GRUB Bootloader Theme
+# Speziell abgestimmt auf Apple MacBook Pro 2011 (1440x900 Display)
+
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#0F1117"
+terminal-font: "Unifont Regular 16"
+terminal-box: "terminal_box_*.png"
+
+# CozyHaze OS Logo oben zentriert
++ image {
+    top = 80
+    left = 50%-128
+    width = 256
+    height = 256
+    file = "logo.png"
+}
+
+# Boot-Menü Auswahlliste
++ boot_menu {
+    left = 25%
+    width = 50%
+    top = 380
+    height = 360
+    item_font = "DejaVu Sans Bold 14"
+    item_color = "#94A3B8"
+    selected_item_font = "DejaVu Sans Bold 14"
+    selected_item_color = "#00F2FE"
+    item_height = 42
+    item_padding = 10
+    item_spacing = 8
+    selected_item_pixmap_style = "select_*.png"
+    scrollbar = false
+}
+
+# Countdown / Timeout Anzeige
++ label {
+    top = 780
+    left = 25%
+    width = 50%
+    align = "center"
+    id = "__timeout__"
+    text = "Automatischer Start in %d Sekunden..."
+    color = "#00E676"
+    font = "DejaVu Sans Regular 12"
+}
+
+# Tastaturhinweis
++ label {
+    top = 830
+    left = 25%
+    width = 50%
+    align = "center"
+    text = "[↑/↓] Auswahl ändern    [Enter] Starten    [E] Boot-Parameter bearbeiten    [C] GRUB-Konsole"
+    color = "#64748B"
+    font = "DejaVu Sans Regular 11"
+}

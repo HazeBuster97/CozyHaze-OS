@@ -1,0 +1,11 @@
+# CozyHaze OS .gitignore
+build/live-build-workspace/
+output/
+*.iso
+*.sha256
+*.sha512
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+Thumbs.db

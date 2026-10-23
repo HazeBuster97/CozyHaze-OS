@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+CozyHaze Web Starter
+Grafischer Projektstarter für Webentwicklung (React, Vue, Next.js, Django, FastAPI, Laravel, Express).
+"""
+
+import os
+import sys
+import subprocess
+import shutil
+
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk, Gdk
+    HAS_GTK = True
+except (ImportError, ValueError):
+    HAS_GTK = False
+
+CSS_STYLING = b"""
+window {
+    background-color: #0F1117;
+    color: #E2E8F0;
+    font-family: 'Segoe UI', 'Roboto', 'Inter', 'Ubuntu', sans-serif;
+}
+headerbar {
+    background: #181B22;
+    border-bottom: 1px solid #232731;
+    color: #FFFFFF;
+}
+.card {
+    background-color: #181B22;
+    border: 1px solid #232731;
+    border-radius: 8px;
+    padding: 16px;
+}
+button.suggested-action {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    border: none;
+    padding: 8px 18px;
+}
+"""
+
+FRAMEWORKS = [
+    ("Next.js (React)", "Modernes Fullstack React Framework mit SSR & Server Actions.", "npx create-next-app@latest"),
+    ("React (Vite)", "Schnelle Single-Page-Application mit modernem HMR Bundler.", "npm create vite@latest {name} -- --template react"),
+    ("Vue.js (Vite)", "Progressives Frontend-Framework mit Single-File-Components.", "npm create vue@latest {name}"),
+    ("FastAPI (Python)", "Hochperformantes Python API-Framework mit automatischer OpenAPI Doku.", "mkdir -p {name} && cd {name} && python3 -m venv .venv && .venv/bin/pip install fastapi uvicorn"),
+    ("Django (Python)", "Vollständiges Web-Framework mit ORM und Admin-Panel.", "mkdir -p {name} && cd {name} && python3 -m venv .venv && .venv/bin/pip install django && .venv/bin/django-admin startproject config ."),
+    ("Express.js (Node)", "Minimalistisches und flexibles Web-Framework für Node.js.", "npx express-generator {name}"),
+    ("Flask (Python)", "Leichtgewichtiges Micro-Framework für Webservices.", "mkdir -p {name} && cd {name} && python3 -m venv .venv && .venv/bin/pip install flask")
+]
+
+if HAS_GTK:
+    class CozyHazeWebStarter(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="CozyHaze Web Starter")
+            self.set_default_size(720, 520)
+            self.set_position(Gtk.WindowPosition.CENTER)
+
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_data(CSS_STYLING)
+            Gtk.StyleContext.add_provider_for_screen(
+                Gdk.Screen.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            header = Gtk.HeaderBar()
+            header.set_show_close_button(True)
+            header.props.title = "CozyHaze Web Starter"
+            header.props.subtitle = "Neues Webprojekt anlegen"
+            self.set_titlebar(header)
+
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+            box.set_border_width(20)
+            self.add(box)
+
+            # Framework Auswahl
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            card.get_style_context().add_class("card")
+
+            card.pack_start(Gtk.Label(label="1. Web-Framework auswählen:", xalign=0), False, False, 0)
+            self.combo = Gtk.ComboBoxText()
+            for title, desc, _ in FRAMEWORKS:
+                self.combo.append_text(f"{title} – {desc[:60]}...")
+            self.combo.set_active(0)
+            card.pack_start(self.combo, False, False, 0)
+
+            # Projektname
+            card.pack_start(Gtk.Label(label="2. Projektname (Ordnername):", xalign=0), False, False, 0)
+            self.name_entry = Gtk.Entry()
+            self.name_entry.set_text("my-web-app")
+            card.pack_start(self.name_entry, False, False, 0)
+
+            # Zielverzeichnis
+            card.pack_start(Gtk.Label(label="3. Zielverzeichnis:", xalign=0), False, False, 0)
+            self.dir_entry = Gtk.Entry()
+            default_dir = os.path.expanduser("~/Development/Web")
+            self.dir_entry.set_text(default_dir)
+            card.pack_start(self.dir_entry, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+
+            # Action Button
+            btn_create = Gtk.Button(label="Projekt generieren & Initialisieren")
+            btn_create.get_style_context().add_class("suggested-action")
+            btn_create.connect("clicked", self.create_project)
+            box.pack_end(btn_create, False, False, 0)
+
+            self.show_all()
+
+        def create_project(self, widget):
+            idx = self.combo.get_active()
+            pname = self.name_entry.get_text().strip() or "web-app"
+            target_dir = self.dir_entry.get_text().strip()
+
+            os.makedirs(target_dir, exist_ok=True)
+            _, _, cmd_tpl = FRAMEWORKS[idx]
+            cmd = cmd_tpl.replace("{name}", pname)
+
+            full_script = f"cd '{target_dir}' && {cmd} && cd '{pname}' && git init && echo 'Projekt {pname} erfolgreich initialisiert!'"
+
+            terms = ["xfce4-terminal", "x-terminal-emulator", "xterm"]
+            term_bin = next((t for t in terms if shutil.which(t)), None)
+            if term_bin:
+                subprocess.Popen([term_bin, "-e", f"sh -c '{full_script}; echo \"Drücken Sie Enter zum Schließen.\"; read _'"])
+                self.destroy()
+
+def main():
+    if HAS_GTK and "DISPLAY" in os.environ:
+        app = CozyHazeWebStarter()
+        Gtk.main()
+    else:
+        print("CozyHaze Web Starter benötigt eine grafische X11/Xfce-Umgebung.")
+
+if __name__ == "__main__":
+    main()

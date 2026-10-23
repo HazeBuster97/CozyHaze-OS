@@ -1,0 +1,27 @@
+# CozyHaze OS - 40-multimedia-audio
+# Audio-Produktion, DAWs, MIDI, Grafikbearbeitung und Medienwiedergabe
+
+# Audio-Produktion & Recording
+audacity
+lmms
+ardour
+qjackctl
+qsynth
+fluidsynth
+vmpk
+
+# Medien-Wiedergabe & Codecs
+vlc
+ffmpeg
+gstreamer1.0-plugins-base
+gstreamer1.0-plugins-good
+gstreamer1.0-plugins-bad
+gstreamer1.0-plugins-ugly
+gstreamer1.0-pipewire
+
+# Bildbearbeitung & Vektorgrafik
+gimp
+inkscape
+ristretto
+flameshot
+evince

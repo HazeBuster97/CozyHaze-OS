@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze OS installieren
+GenericName=System Installer
+Comment=CozyHaze OS dauerhaft auf SSD installieren
+Exec=sh -c "pkexec calamares -d"
+Icon=install-debian
+Terminal=false
+Categories=System;
+StartupNotify=true

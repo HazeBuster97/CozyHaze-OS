@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+CozyHaze Automation Center
+Verwaltung und Starter für Automatisierungsskripte, Playwright-Tests, systemd-Timer und Cron-Jobs.
+"""
+
+import os
+import sys
+import subprocess
+import shutil
+
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk, Gdk, GLib
+    HAS_GTK = True
+except (ImportError, ValueError):
+    HAS_GTK = False
+
+CSS_STYLING = b"""
+window {
+    background-color: #0F1117;
+    color: #E2E8F0;
+    font-family: 'Segoe UI', 'Roboto', 'Inter', 'Ubuntu', sans-serif;
+}
+headerbar {
+    background: #181B22;
+    border-bottom: 1px solid #232731;
+    color: #FFFFFF;
+}
+.card {
+    background-color: #181B22;
+    border: 1px solid #232731;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+button.suggested-action {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    border: none;
+    padding: 6px 14px;
+}
+"""
+
+if HAS_GTK:
+    class CozyHazeAutomationCenter(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="CozyHaze Automation Center")
+            self.set_default_size(880, 580)
+            self.set_position(Gtk.WindowPosition.CENTER)
+
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_data(CSS_STYLING)
+            Gtk.StyleContext.add_provider_for_screen(
+                Gdk.Screen.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            header = Gtk.HeaderBar()
+            header.set_show_close_button(True)
+            header.props.title = "CozyHaze Automation Center"
+            header.props.subtitle = "Playwright • Python • Cron & systemd Timer"
+            self.set_titlebar(header)
+
+            main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            self.add(main_box)
+
+            self.stack = Gtk.Stack()
+            sidebar = Gtk.StackSidebar()
+            sidebar.set_stack(self.stack)
+            sidebar.set_size_request(220, -1)
+            main_box.pack_start(sidebar, False, False, 0)
+            main_box.pack_start(self.stack, True, True, 0)
+
+            self.build_tasks_page()
+            self.build_timers_page()
+            self.build_logs_page()
+            self.show_all()
+
+        def create_scrollable_page(self, title):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+            box.set_border_width(20)
+
+            lbl = Gtk.Label()
+            lbl.set_markup(f"<span size='x-large' weight='bold' color='#00F2FE'>{title}</span>")
+            lbl.set_xalign(0)
+            box.pack_start(lbl, False, False, 0)
+
+            scrolled = Gtk.ScrolledWindow()
+            scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scrolled.add(box)
+            return box, scrolled
+
+        def build_tasks_page(self):
+            box, scrolled = self.create_scrollable_page("Automatisierungs-Vorlagen")
+            box.pack_start(Gtk.Label(label="Starten Sie vordefinierte Automatisierungs-Routinen oder richten Sie neue Projekte ein:", xalign=0), False, False, 0)
+
+            tasks = [
+                ("Playwright End-to-End Test", "Führt Browser-Automatisierungstests mit Headless Chromium durch.", "pytest tests/ --headed"),
+                ("Python Web-Scraping Job", "Extrahiert strukturierte Daten mit BeautifulSoup & Requests.", "python3 -m venv .venv && pip install beautifulsoup4 requests"),
+                ("Git Backup & Sync", "Synchronisiert lokale Repositories mit Remote-Servern.", "git status && git fetch --all"),
+                ("System-Log Bereinigung", "Kürzt rotierte Systemd-Journale auf maximal 200 MB.", "sudo journalctl --vacuum-size=200M")
+            ]
+
+            for name, desc, cmd in tasks:
+                card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+                card.get_style_context().add_class("card")
+
+                vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                t_lbl = Gtk.Label()
+                t_lbl.set_markup(f"<span weight='bold'>{name}</span>")
+                t_lbl.set_xalign(0)
+                vbox.pack_start(t_lbl, False, False, 0)
+                vbox.pack_start(Gtk.Label(label=desc, xalign=0), False, False, 0)
+                card.pack_start(vbox, True, True, 0)
+
+                btn = Gtk.Button(label="Ausführen")
+                btn.get_style_context().add_class("suggested-action")
+                btn.connect("clicked", lambda w, c=cmd: self.launch_command(c))
+                card.pack_end(btn, False, False, 0)
+
+                box.pack_start(card, False, False, 0)
+
+            self.stack.add_titled(scrolled, "tasks", "Automatisierungs-Jobs")
+
+        def build_timers_page(self):
+            box, scrolled = self.create_scrollable_page("Geplante Aufgaben (systemd Timer & Cron)")
+            box.pack_start(Gtk.Label(label="Aktive systemd-Timer im System:", xalign=0), False, False, 0)
+
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            card.get_style_context().add_class("card")
+
+            try:
+                res = subprocess.run(["systemctl", "list-timers", "--no-pager"], stdout=subprocess.PIPE, text=True)
+                lines = res.stdout.strip().split("\n")[:10]
+                text = "\n".join(lines) if lines else "Keine Timer gefunden."
+            except Exception:
+                text = "systemctl nicht verfügbar."
+
+            tv = Gtk.TextView()
+            tv.set_editable(False)
+            tv.get_buffer().set_text(text)
+            card.pack_start(tv, True, True, 0)
+            box.pack_start(card, True, True, 0)
+
+            self.stack.add_titled(scrolled, "timers", "Geplante Timer")
+
+        def build_logs_page(self):
+            box, scrolled = self.create_scrollable_page("Ausführungs-Logs")
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            card.get_style_context().add_class("card")
+
+            try:
+                res = subprocess.run(["journalctl", "-n", "30", "--no-pager"], stdout=subprocess.PIPE, text=True)
+                log_text = res.stdout.strip()
+            except Exception:
+                log_text = "Journald nicht erreichbar."
+
+            tv = Gtk.TextView()
+            tv.set_editable(False)
+            tv.get_buffer().set_text(log_text)
+            card.pack_start(tv, True, True, 0)
+            box.pack_start(card, True, True, 0)
+
+            self.stack.add_titled(scrolled, "logs", "System-Logs")
+
+        def launch_command(self, cmd):
+            terms = ["xfce4-terminal", "x-terminal-emulator", "xterm"]
+            term_bin = next((t for t in terms if shutil.which(t)), None)
+            if term_bin:
+                subprocess.Popen([term_bin, "-e", f"sh -c '{cmd}; echo \"Abgeschlossen. Druecken Sie Enter.\"; read _'"])
+            else:
+                subprocess.Popen(["sh", "-c", cmd])
+
+def main():
+    if HAS_GTK and "DISPLAY" in os.environ:
+        app = CozyHazeAutomationCenter()
+        Gtk.main()
+    else:
+        print("CozyHaze Automation Center benötigt eine grafische X11/Xfce-Umgebung.")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=CozyHaze Glow
+Description=A modern dark neon bootsplash for CozyHaze OS on MacBook Pro 2011
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/cozyhaze-glow
+ScriptFile=/usr/share/plymouth/themes/cozyhaze-glow/cozyhaze-glow.script

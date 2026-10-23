@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze Automation Center
+Name[de]=CozyHaze Automatisierungs-Zentrum
+Comment=Playwright, Python jobs, systemd timers, and task orchestration
+Comment[de]=Playwright, Python-Jobs, systemd-Timer und Aufgabenverwaltung
+Exec=/usr/local/bin/cozyhaze-automation-center
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;System;Utility;
+Keywords=automation;playwright;cron;timer;python;scripts;
+StartupNotify=true

@@ -1,0 +1,76 @@
+{
+  "profiles": [
+    {
+      "id": "ultimate-complete",
+      "name": "Ultimate Complete",
+      "name_de": "Vollständiges Ultimate Paket",
+      "description": "Installiert alle empfohlenen Core- und Extras-Werkzeuge für Entwicklung, Cybersecurity, KI, Office und Multimedia.",
+      "icon": "emblem-favorite",
+      "packages": ["geany", "nmap", "wireshark", "libreoffice-writer", "libreoffice-calc", "gimp", "audacity", "vlc", "remmina", "docker.io", "keepassxc", "retroarch"],
+      "extras": ["vscodium", "jupyterlab", "dbeaver-ce", "thunderbird", "handbrake"]
+    },
+    {
+      "id": "developer",
+      "name": "Developer Suite",
+      "name_de": "Entwickler-Suite",
+      "description": "Vollständige Werkzeuge für C/C++, Rust, Go, Python, Node.js, Web-Entwicklung und Container.",
+      "icon": "applications-development",
+      "packages": ["build-essential", "clang", "rustc", "cargo", "golang-go", "nodejs", "npm", "python3-venv", "docker.io", "podman", "git-gui", "meld"],
+      "extras": ["vscodium", "dbeaver-ce", "jupyterlab"]
+    },
+    {
+      "id": "cybersecurity",
+      "name": "Cybersecurity & Audit",
+      "name_de": "Cybersecurity & IT-Sicherheit",
+      "description": "Protokollanalyse, Auditing, Forensik und autorisierte Penetrationstests.",
+      "icon": "security-high",
+      "packages": ["nmap", "wireshark", "tshark", "tcpdump", "lynis", "clamav", "rkhunter", "testdisk", "foremost", "aircrack-ng", "hydra", "john", "nikto"],
+      "extras": ["zaproxy", "burpsuite-community"]
+    },
+    {
+      "id": "ai-automation",
+      "name": "AI & Automation",
+      "name_de": "Künstliche Intelligenz & Automatisierung",
+      "description": "JupyterLab, Python-Datenanalyse, Browser-Automatisierung mit Playwright und KI-Assistenten.",
+      "icon": "system-run",
+      "packages": ["python3-pip", "python3-venv", "curl", "jq"],
+      "extras": ["jupyterlab", "ollama"]
+    },
+    {
+      "id": "office-business",
+      "name": "Office & Productivity",
+      "name_de": "Büro & Produktivität",
+      "description": "Vollständiges Office-Paket, PDF-Bearbeitung, OCR-Texterkennung und Dokumentenverwaltung.",
+      "icon": "x-office-document",
+      "packages": ["libreoffice-writer", "libreoffice-calc", "libreoffice-impress", "libreoffice-draw", "pdfarranger", "simple-scan", "tesseract-ocr-deu", "keepassxc"],
+      "extras": ["thunderbird"]
+    },
+    {
+      "id": "multimedia-creator",
+      "name": "Multimedia & Creator",
+      "name_de": "Kreativ & Medienproduktion",
+      "description": "Bildbearbeitung, Audioaufnahme, DAWs, Vektorgrafik und Videoschnitt.",
+      "icon": "applications-multimedia",
+      "packages": ["gimp", "inkscape", "audacity", "lmms", "ardour", "vlc", "ffmpeg", "flameshot"],
+      "extras": ["handbrake", "krita"]
+    },
+    {
+      "id": "server-admin",
+      "name": "Server & Homelab Admin",
+      "name_de": "Server- & Netzwerkadministration",
+      "description": "Remote-Desktop (RDP/VNC), SSH-Verwaltung, WireGuard, OpenVPN, Container und Homelab-Tools.",
+      "icon": "network-server",
+      "packages": ["remmina", "remmina-plugin-rdp", "remmina-plugin-vnc", "wireguard", "openvpn", "docker.io", "podman", "nmap", "iperf3"],
+      "extras": ["dbeaver-ce"]
+    },
+    {
+      "id": "minimal-performance",
+      "name": "Minimal Performance",
+      "name_de": "Maximale Geschwindigkeit (Minimal)",
+      "description": "Nur essentielle Werkzeuge für extrem niedrigen Speicherverbrauch und maximale Akkulaufzeit.",
+      "icon": "preferences-system-performance",
+      "packages": ["geany", "firefox-esr", "keepassxc", "thunar", "ufw"],
+      "extras": []
+    }
+  ]
+}

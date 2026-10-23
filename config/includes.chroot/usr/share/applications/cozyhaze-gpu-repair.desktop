@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze GPU Repair
+Name[de]=CozyHaze GPU-Reparaturwerkzeug
+Comment=Safe EFI & GMUX configuration to bypass dead AMD GPU
+Comment[de]=Sichere EFI- & GMUX-Umschaltung für defekte AMD Radeon GPU
+Exec=xfce4-terminal -e "sudo /usr/local/bin/cozyhaze-gpu-repair"
+Icon=video-display
+Terminal=false
+Categories=System;HardwareSettings;
+Keywords=gpu;intel;radeon;repair;efi;macbook;
+StartupNotify=true

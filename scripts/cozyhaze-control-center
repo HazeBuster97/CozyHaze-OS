@@ -1,0 +1,617 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+CozyHaze Control Center Ultimate
+Die zentrale System-, Sicherheits- und Hardwareverwaltung für CozyHaze OS auf MacBook Pro 2011.
+Erweitert um UFW-Firewall, AppArmor, Diensteverwaltung, Autostart und Sicherheits-Audits.
+"""
+
+import os
+import sys
+import subprocess
+import shutil
+import platform
+import glob
+
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk, Gdk, GLib
+    HAS_GTK = True
+except (ImportError, ValueError):
+    HAS_GTK = False
+
+
+# ==============================================================================
+# Systemabfrage-Hilfsfunktionen
+# ==============================================================================
+
+def run_cmd(cmd_list, timeout=10):
+    try:
+        res = subprocess.run(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
+        return res.stdout.strip()
+    except Exception:
+        return ""
+
+def get_dmi_info():
+    info = {"product_name": "Unbekannt", "board_name": "Unbekannt", "bios_version": "Unbekannt"}
+    for key in info:
+        path = f"/sys/class/dmi/id/{key}"
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    info[key] = f.read().strip()
+            except Exception:
+                pass
+    return info
+
+def get_cpu_info():
+    model = "Intel Core Prozessor"
+    cores = os.cpu_count() or 4
+    if os.path.exists("/proc/cpuinfo"):
+        try:
+            with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
+                for line in f:
+                    if "model name" in line:
+                        model = line.split(":", 1)[1].strip()
+                        break
+        except Exception:
+            pass
+    return f"{model} ({cores} Kerne / Threads)"
+
+def get_memory_info():
+    mem_total, mem_avail = 0, 0
+    if os.path.exists("/proc/meminfo"):
+        try:
+            with open("/proc/meminfo", "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.split(":")
+                    if parts[0] == "MemTotal":
+                        mem_total = int(parts[1].replace("kB", "").strip())
+                    elif parts[0] == "MemAvailable":
+                        mem_avail = int(parts[1].replace("kB", "").strip())
+        except Exception:
+            pass
+    if mem_total > 0:
+        mem_used = mem_total - mem_avail
+        used_gb = mem_used / (1024 * 1024)
+        total_gb = mem_total / (1024 * 1024)
+        pct = (mem_used / mem_total) * 100
+        return f"{used_gb:.1f} GB von {total_gb:.1f} GB belegt ({pct:.0f}%)", pct / 100.0
+    return "N/A", 0.0
+
+def get_disk_info():
+    try:
+        st = os.statvfs("/")
+        total = (st.f_blocks * st.f_frsize) / (1024**3)
+        avail = (st.f_bavail * st.f_frsize) / (1024**3)
+        used = total - avail
+        pct = (used / total) * 100 if total > 0 else 0
+        return f"{used:.1f} GB von {total:.1f} GB ({pct:.0f}%)", pct / 100.0
+    except Exception:
+        return "N/A", 0.0
+
+def get_gpu_status():
+    lspci_out = run_cmd(["lspci", "-nn"])
+    intel_found = "Intel" in lspci_out and ("0116" in lspci_out or "0126" in lspci_out or "HD Graphics 3000" in lspci_out or "VGA" in lspci_out)
+    amd_found = any(x in lspci_out.lower() for x in ["radeon", "amd", "1002:6741", "1002:6760"])
+    
+    lsmod_out = run_cmd(["lsmod"])
+    i915_loaded = "i915" in lsmod_out
+    radeon_loaded = "radeon" in lsmod_out
+    amdgpu_loaded = "amdgpu" in lsmod_out
+
+    efivar_path = "/sys/firmware/efi/efivars/gpu-power-prefs-fa4ce28d-b62f-4c99-9cc3-6815686e30f9"
+    efi_mode = "Nicht gesetzt (Standard: AMD aktiv)"
+    if os.path.exists(efivar_path):
+        try:
+            with open(efivar_path, "rb") as f:
+                data = f.read()
+                if len(data) >= 5:
+                    val = data[4]
+                    if val == 1:
+                        efi_mode = "Intel HD 3000 (iGPU) erzwungen (0x01) - Sicher ✓"
+                    elif val == 0:
+                        efi_mode = "AMD Radeon (dGPU) erzwungen (0x00) - Warnung ✗"
+                    else:
+                        efi_mode = f"Benutzerdefiniert ({hex(val)})"
+        except Exception:
+            efi_mode = "Vorhanden (Keine Leseberechtigung, bitte sudo nutzen)"
+
+    return {
+        "intel_present": intel_found,
+        "amd_present": amd_found,
+        "i915_active": i915_loaded,
+        "radeon_active": radeon_loaded,
+        "amdgpu_active": amdgpu_loaded,
+        "efi_mode": efi_mode
+    }
+
+def get_firewall_status():
+    res = run_cmd(["ufw", "status"])
+    if "Status: active" in res:
+        return True, "Aktiviert & Geschützt ✓"
+    return False, "Inaktiv ✗"
+
+def get_apparmor_status():
+    res = run_cmd(["aa-status", "--enabled"])
+    return "Aktiv ✓" if res == "" or "apparmor is enabled" in res.lower() else "Nicht aktiv"
+
+
+# ==============================================================================
+# GTK 3 Benutzeroberfläche
+# ==============================================================================
+
+CSS_STYLING = b"""
+window {
+    background-color: #0F1117;
+    color: #E2E8F0;
+    font-family: 'Segoe UI', 'Roboto', 'Inter', 'Ubuntu', sans-serif;
+}
+headerbar {
+    background: #181B22;
+    border-bottom: 1px solid #232731;
+    color: #FFFFFF;
+}
+stacksidebar list {
+    background-color: #141720;
+    border-right: 1px solid #232731;
+}
+stacksidebar list row {
+    padding: 10px 14px;
+    color: #CBD5E1;
+    border-radius: 6px;
+    margin: 2px 6px;
+}
+stacksidebar list row:selected {
+    background: linear-gradient(90deg, #1E293B, #0F172A);
+    border-left: 3px solid #00F2FE;
+    color: #00F2FE;
+    font-weight: bold;
+}
+frame {
+    border: 1px solid #232731;
+    border-radius: 8px;
+    background-color: #161922;
+    padding: 12px;
+}
+button.suggested-action {
+    background: linear-gradient(135deg, #00C6FF, #0072FF);
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    border: none;
+    padding: 8px 16px;
+}
+button.destructive-action {
+    background-color: #EF4444;
+    color: white;
+    border-radius: 6px;
+    border: none;
+    padding: 8px 16px;
+}
+progressbar progress {
+    background: linear-gradient(90deg, #00F2FE, #4FACFE);
+    border-radius: 4px;
+}
+progressbar trough {
+    background-color: #1E293B;
+    border-radius: 4px;
+}
+"""
+
+if HAS_GTK:
+    class CozyHazeControlCenter(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="CozyHaze Control Center Ultimate")
+            self.set_default_size(980, 680)
+            self.set_position(Gtk.WindowPosition.CENTER)
+
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_data(CSS_STYLING)
+            Gtk.StyleContext.add_provider_for_screen(
+                Gdk.Screen.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            header = Gtk.HeaderBar()
+            header.set_show_close_button(True)
+            header.props.title = "CozyHaze Control Center Ultimate"
+            header.props.subtitle = "MacBook Pro 2011 • Hardware & Systemsicherheit"
+            self.set_titlebar(header)
+
+            refresh_btn = Gtk.Button(label="Aktualisieren")
+            refresh_btn.connect("clicked", self.on_refresh_clicked)
+            header.pack_end(refresh_btn)
+
+            main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            self.add(main_box)
+
+            self.stack = Gtk.Stack()
+            self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+            self.stack.set_transition_duration(150)
+
+            sidebar = Gtk.StackSidebar()
+            sidebar.set_stack(self.stack)
+            sidebar.set_size_request(230, -1)
+            main_box.pack_start(sidebar, False, False, 0)
+            main_box.pack_start(self.stack, True, True, 0)
+
+            # Seiten erstellen
+            self.build_overview_page()
+            self.build_gpu_page()
+            self.build_security_page()
+            self.build_kernel_page()
+            self.build_power_page()
+            self.build_maintenance_page()
+            self.build_services_page()
+            self.build_network_page()
+            self.build_backup_page()
+
+            self.show_all()
+
+        def create_page_container(self, title_text):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+            box.set_border_width(20)
+
+            lbl = Gtk.Label()
+            lbl.set_markup(f"<span size='x-large' weight='bold' color='#00F2FE'>{title_text}</span>")
+            lbl.set_xalign(0)
+            box.pack_start(lbl, False, False, 0)
+
+            scrolled = Gtk.ScrolledWindow()
+            scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scrolled.add(box)
+            return box, scrolled
+
+        # 1. Übersicht
+        def build_overview_page(self):
+            box, scrolled = self.create_page_container("Systemübersicht & Spezifikationen")
+
+            hw_frame = Gtk.Frame(label="Hardware-Profil")
+            hw_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            hw_box.set_border_width(12)
+            hw_frame.add(hw_box)
+
+            dmi = get_dmi_info()
+            hw_box.pack_start(Gtk.Label(label=f"Modellkennung: {dmi['product_name']} ({dmi['board_name']})", xalign=0), False, False, 0)
+            hw_box.pack_start(Gtk.Label(label=f"Firmware: Apple EFI {dmi['bios_version']}", xalign=0), False, False, 0)
+            hw_box.pack_start(Gtk.Label(label=f"Prozessor: {get_cpu_info()}", xalign=0), False, False, 0)
+            hw_box.pack_start(Gtk.Label(label=f"Kernel: {platform.release()} ({platform.machine()})", xalign=0), False, False, 0)
+            box.pack_start(hw_frame, False, False, 0)
+
+            res_frame = Gtk.Frame(label="Ressourcenauslastung")
+            res_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            res_box.set_border_width(12)
+            res_frame.add(res_box)
+
+            ram_text, ram_frac = get_memory_info()
+            res_box.pack_start(Gtk.Label(label=f"Arbeitsspeicher (RAM): {ram_text}", xalign=0), False, False, 0)
+            ram_bar = Gtk.ProgressBar()
+            ram_bar.set_fraction(ram_frac)
+            res_box.pack_start(ram_bar, False, False, 0)
+
+            disk_text, disk_frac = get_disk_info()
+            res_box.pack_start(Gtk.Label(label=f"SATA-SSD Speicher: {disk_text}", xalign=0), False, False, 0)
+            disk_bar = Gtk.ProgressBar()
+            disk_bar.set_fraction(disk_frac)
+            res_box.pack_start(disk_bar, False, False, 0)
+
+            box.pack_start(res_frame, False, False, 0)
+            self.stack.add_titled(scrolled, "overview", "Übersicht")
+
+        # 2. GPU & GMUX
+        def build_gpu_page(self):
+            box, scrolled = self.create_page_container("Grafik & GPU-Umschaltung")
+            gpu = get_gpu_status()
+
+            card = Gtk.Frame(label="Aktueller GPU-Status")
+            card_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            card_box.set_border_width(12)
+            card.add(card_box)
+
+            i_state = "<span color='#10B981'><b>Aktiv &amp; Bereit ✓</b></span>" if gpu['i915_active'] else "<span color='#F59E0B'>Inaktiv / Fallback</span>"
+            lbl_intel = Gtk.Label()
+            lbl_intel.set_markup(f"Intel HD Graphics 3000 (i915): {i_state}")
+            lbl_intel.set_xalign(0)
+            card_box.pack_start(lbl_intel, False, False, 0)
+
+            if gpu['radeon_active'] or gpu['amdgpu_active']:
+                a_state = "<span color='#EF4444'><b>ACHTUNG: Treiber geladen! ✗</b></span>"
+            else:
+                a_state = "<span color='#10B981'><b>Stromlos &amp; Blockiert ✓</b></span>"
+            lbl_amd = Gtk.Label()
+            lbl_amd.set_markup(f"AMD Radeon Discrete GPU: {a_state}")
+            lbl_amd.set_xalign(0)
+            card_box.pack_start(lbl_amd, False, False, 0)
+
+            lbl_efi = Gtk.Label()
+            lbl_efi.set_markup(f"Apple EFI gpu-power-prefs: <b>{gpu['efi_mode']}</b>")
+            lbl_efi.set_xalign(0)
+            card_box.pack_start(lbl_efi, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+
+            btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            btn_repair = Gtk.Button(label="GPU-Reparaturwerkzeug öffnen")
+            btn_repair.get_style_context().add_class("suggested-action")
+            btn_repair.connect("clicked", lambda w: self.launch_terminal_app("cozyhaze-gpu-repair"))
+            btn_box.pack_start(btn_repair, False, False, 0)
+
+            btn_diag = Gtk.Button(label="Ausführliche Hardware-Diagnose")
+            btn_diag.connect("clicked", lambda w: self.launch_terminal_app("cozyhaze-gpu-diag"))
+            btn_box.pack_start(btn_diag, False, False, 0)
+
+            box.pack_start(btn_box, False, False, 0)
+            self.stack.add_titled(scrolled, "gpu", "GPU & Hardware")
+
+        # 3. Systemsicherheit & Firewall (NEU)
+        def build_security_page(self):
+            box, scrolled = self.create_page_container("Systemsicherheit & Firewall")
+
+            fw_frame = Gtk.Frame(label="UFW Firewall Status")
+            fw_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            fw_box.set_border_width(12)
+            fw_frame.add(fw_box)
+
+            is_active, fw_txt = get_firewall_status()
+            self.fw_lbl = Gtk.Label()
+            self.fw_lbl.set_markup(f"Status der Paketfilter-Firewall: <b>{fw_txt}</b>")
+            self.fw_lbl.set_xalign(0)
+            fw_box.pack_start(self.fw_lbl, False, False, 0)
+
+            btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            btn_on = Gtk.Button(label="Firewall aktivieren (Sicher)")
+            btn_on.get_style_context().add_class("suggested-action")
+            btn_on.connect("clicked", self.enable_firewall)
+            btn_box.pack_start(btn_on, False, False, 0)
+
+            btn_off = Gtk.Button(label="Firewall deaktivieren")
+            btn_off.get_style_context().add_class("destructive-action")
+            btn_off.connect("clicked", self.disable_firewall)
+            btn_box.pack_start(btn_off, False, False, 0)
+            fw_box.pack_start(btn_box, False, False, 0)
+            box.pack_start(fw_frame, False, False, 0)
+
+            # Offene Ports Überprüfung
+            ports_frame = Gtk.Frame(label="Offene Netzwerk-Dienste & Ports (ss -tulpn)")
+            ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            ports_box.set_border_width(12)
+            ports_frame.add(ports_box)
+
+            open_ports = run_cmd(["ss", "-tulpn"])
+            tv = Gtk.TextView()
+            tv.set_editable(False)
+            tv.get_buffer().set_text(open_ports if open_ports else "Keine offenen Listening-Ports gefunden (Optimal für Sicherheit ✓).")
+            ports_box.pack_start(tv, True, True, 0)
+            box.pack_start(ports_frame, True, True, 0)
+
+            # AppArmor Status
+            sec_frame = Gtk.Frame(label="AppArmor Sicherheitsmodul")
+            sbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            sbox.set_border_width(12)
+            sec_frame.add(sbox)
+            sbox.pack_start(Gtk.Label(label=f"Kernel-Modul AppArmor: {get_apparmor_status()}", xalign=0), False, False, 0)
+            sbox.pack_start(Gtk.Label(label="SSH-Server Daemon: Standardmäßig deaktiviert (Kein unerlaubter Fernzugriff)", xalign=0), False, False, 0)
+            box.pack_start(sec_frame, False, False, 0)
+
+            self.stack.add_titled(scrolled, "security", "Sicherheit & Firewall")
+
+        # 4. Kernel-Verwaltung
+        def build_kernel_page(self):
+            box, scrolled = self.create_page_container("Kernel-Verwaltung")
+            cur_k = platform.release()
+
+            lbl_cur = Gtk.Label()
+            lbl_cur.set_markup(f"Aktiver Linux-Kernel: <span color='#00F2FE'><b>{cur_k}</b></span>")
+            lbl_cur.set_xalign(0)
+            box.pack_start(lbl_cur, False, False, 0)
+
+            card = Gtk.Frame(label="Verfügbare Kernel")
+            card_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            card_box.set_border_width(12)
+            card.add(card_box)
+
+            vmlinuz_list = glob.glob("/boot/vmlinuz-*")
+            if vmlinuz_list:
+                for vk in vmlinuz_list:
+                    kver = os.path.basename(vk).replace("vmlinuz-", "")
+                    active_tag = " <span color='#10B981'><b>(Aktiv)</b></span>" if kver == cur_k else ""
+                    k_lbl = Gtk.Label()
+                    k_lbl.set_markup(f"• Kernel {kver}{active_tag}")
+                    k_lbl.set_xalign(0)
+                    card_box.pack_start(k_lbl, False, False, 0)
+            else:
+                card_box.pack_start(Gtk.Label(label="Keine Kernel unter /boot gefunden (Live-Modus).", xalign=0), False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+            self.stack.add_titled(scrolled, "kernel", "Kernel")
+
+        # 5. Energie & Lüfter
+        def build_power_page(self):
+            box, scrolled = self.create_page_container("Energie & Lüftersteuerung")
+            box.pack_start(Gtk.Label(label="Wählen Sie das gewünschte Energieprofil für die Intel CPU:", xalign=0), False, False, 0)
+
+            grid = Gtk.Grid()
+            grid.set_column_spacing(12)
+            grid.set_row_spacing(12)
+
+            btn_powersave = Gtk.Button(label="Stromsparmodus (powersave)")
+            btn_powersave.connect("clicked", lambda w: self.set_governor("powersave"))
+            grid.attach(btn_powersave, 0, 0, 1, 1)
+
+            btn_balanced = Gtk.Button(label="Ausbalanciert (schedutil)")
+            btn_balanced.connect("clicked", lambda w: self.set_governor("schedutil"))
+            grid.attach(btn_balanced, 1, 0, 1, 1)
+
+            btn_perf = Gtk.Button(label="Höchstleistung (performance)")
+            btn_perf.connect("clicked", lambda w: self.set_governor("performance"))
+            grid.attach(btn_perf, 2, 0, 1, 1)
+
+            box.pack_start(grid, False, False, 0)
+
+            fan_frame = Gtk.Frame(label="Apple SMC Lüfterstatus")
+            fan_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            fan_box.set_border_width(12)
+            fan_frame.add(fan_box)
+
+            fan_found = False
+            for f_speed in glob.glob("/sys/devices/platform/applesmc.768/fan*_output"):
+                fan_found = True
+                try:
+                    with open(f_speed, "r") as f:
+                        spd = f.read().strip()
+                    fan_box.pack_start(Gtk.Label(label=f"Lüfter ({os.path.basename(f_speed)}): {spd} U/min", xalign=0), False, False, 0)
+                except Exception:
+                    pass
+            if not fan_found:
+                fan_box.pack_start(Gtk.Label(label="Keine AppleSMC Sensoren aktiv (Virtuelle Umgebung oder Treiber ungeladen).", xalign=0), False, False, 0)
+
+            box.pack_start(fan_frame, False, False, 0)
+            self.stack.add_titled(scrolled, "power", "Energie & Lüfter")
+
+        # 6. Wartung
+        def build_maintenance_page(self):
+            box, scrolled = self.create_page_container("Systemwartung & Bereinigung")
+            card = Gtk.Frame(label="Wartungsroutinen")
+            c_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            c_box.set_border_width(12)
+            card.add(c_box)
+
+            btn_trim = Gtk.Button(label="SSD-TRIM ausführen (fstrim -v /)")
+            btn_trim.connect("clicked", self.on_trim_clicked)
+            c_box.pack_start(btn_trim, False, False, 0)
+
+            btn_apt_clean = Gtk.Button(label="Paket-Cache bereinigen (apt clean)")
+            btn_apt_clean.connect("clicked", self.on_clean_apt_clicked)
+            c_box.pack_start(btn_apt_clean, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+            self.stack.add_titled(scrolled, "maintenance", "Wartung")
+
+        # 7. Diensteverwaltung (NEU)
+        def build_services_page(self):
+            box, scrolled = self.create_page_container("Dienste & Autostart")
+            box.pack_start(Gtk.Label(label="Wichtige Hintergrunddienste verwalten (keine unnötige Last im Leerlauf):", xalign=0), False, False, 0)
+
+            card = Gtk.Frame(label="Dienst-Status")
+            c_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            c_box.set_border_width(12)
+            card.add(c_box)
+
+            services = ["bluetooth.service", "NetworkManager.service", "ssh.service", "cups.service", "docker.service"]
+            for s in services:
+                status = run_cmd(["systemctl", "is-active", s])
+                s_lbl = Gtk.Label()
+                color = "#10B981" if status == "active" else "#94A3B8"
+                s_lbl.set_markup(f"• <b>{s}</b>: <span color='{color}'>{status}</span>")
+                s_lbl.set_xalign(0)
+                c_box.pack_start(s_lbl, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+            self.stack.add_titled(scrolled, "services", "Dienste")
+
+        # 8. Netzwerk
+        def build_network_page(self):
+            box, scrolled = self.create_page_container("Netzwerkdiagnose")
+            card = Gtk.Frame(label="Verbindungstests")
+            c_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            c_box.set_border_width(12)
+            card.add(c_box)
+
+            self.net_result_lbl = Gtk.Label(label="Klicken Sie auf 'Diagnose starten', um die Verbindung zu testen.", xalign=0)
+            c_box.pack_start(self.net_result_lbl, False, False, 0)
+
+            btn_ping = Gtk.Button(label="Diagnose starten (Ping 1.1.1.1 & DNS)")
+            btn_ping.get_style_context().add_class("suggested-action")
+            btn_ping.connect("clicked", self.on_net_test_clicked)
+            c_box.pack_start(btn_ping, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+            self.stack.add_titled(scrolled, "network", "Netzwerk")
+
+        # 9. Backup
+        def build_backup_page(self):
+            box, scrolled = self.create_page_container("Backup & Wiederherstellung")
+            card = Gtk.Frame(label="EFI- und Systemrettung")
+            c_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            c_box.set_border_width(12)
+            card.add(c_box)
+
+            c_box.pack_start(Gtk.Label(label="Sicherungen der Apple EFI-Variablen werden unter /var/backups/cozyhaze-efivars/ aufbewahrt.", xalign=0), False, False, 0)
+
+            btn_restore = Gtk.Button(label="EFI-Sicherung wiederherstellen")
+            btn_restore.connect("clicked", lambda w: self.launch_terminal_app("cozyhaze-gpu-repair"))
+            c_box.pack_start(btn_restore, False, False, 0)
+
+            box.pack_start(card, False, False, 0)
+            self.stack.add_titled(scrolled, "backup", "Backup & Rettung")
+
+        # Handler
+        def on_refresh_clicked(self, widget):
+            self.destroy()
+            CozyHazeControlCenter()
+
+        def launch_terminal_app(self, cmd):
+            terms = ["xfce4-terminal", "x-terminal-emulator", "xterm"]
+            term_bin = next((t for t in terms if shutil.which(t)), None)
+            if term_bin:
+                subprocess.Popen([term_bin, "-e", f"sudo {cmd}"])
+            else:
+                subprocess.Popen(["pkexec", cmd])
+
+        def enable_firewall(self, widget):
+            subprocess.run(["pkexec", "ufw", "enable"])
+            self.fw_lbl.set_markup("Status der Paketfilter-Firewall: <span color='#10B981'><b>Aktiviert &amp; Geschützt ✓</b></span>")
+
+        def disable_firewall(self, widget):
+            subprocess.run(["pkexec", "ufw", "disable"])
+            self.fw_lbl.set_markup("Status der Paketfilter-Firewall: <span color='#EF4444'><b>Inaktiv ✗</b></span>")
+
+        def set_governor(self, gov):
+            res = subprocess.run(["pkexec", "sh", "-c", f"echo {gov} | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            msg = "Energieprofil erfolgreich gesetzt!" if res.returncode == 0 else "Fehler beim Setzen (Root-Rechte benötigt)."
+            dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO,
+                                       buttons=Gtk.ButtonsType.OK, text=msg)
+            dialog.run()
+            dialog.destroy()
+
+        def on_trim_clicked(self, widget):
+            res = subprocess.run(["pkexec", "fstrim", "-v", "/"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            msg = res.stdout.strip() if res.returncode == 0 else f"Fehler: {res.stderr.strip()}"
+            dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO,
+                                       buttons=Gtk.ButtonsType.OK, text=f"SSD-TRIM Ergebnis:\n{msg}")
+            dialog.run()
+            dialog.destroy()
+
+        def on_clean_apt_clicked(self, widget):
+            res = subprocess.run(["pkexec", "apt-get", "clean"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            msg = "APT-Paketcache erfolgreich geleert." if res.returncode == 0 else "Bereinigung fehlgeschlagen."
+            dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO,
+                                       buttons=Gtk.ButtonsType.OK, text=msg)
+            dialog.run()
+            dialog.destroy()
+
+        def on_net_test_clicked(self, widget):
+            self.net_result_lbl.set_text("Führe Ping- und DNS-Test durch...")
+            GLib.timeout_add(100, self._do_net_test)
+
+        def _do_net_test(self):
+            ping_cf = subprocess.run(["ping", "-c", "2", "-W", "2", "1.1.1.1"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            dns_cf = subprocess.run(["ping", "-c", "2", "-W", "2", "debian.org"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_ok = ping_cf.returncode == 0
+            d_ok = dns_cf.returncode == 0
+            txt = f"Internetverbindung (1.1.1.1): {'✓ OK' if p_ok else '✗ Keine Antwort'}\n"
+            txt += f"Namensauflösung (DNS debian.org): {'✓ OK' if d_ok else '✗ DNS-Fehler'}"
+            self.net_result_lbl.set_text(txt)
+            return False
+
+def main():
+    if HAS_GTK and "DISPLAY" in os.environ:
+        app = CozyHazeControlCenter()
+        Gtk.main()
+    else:
+        print("CozyHaze Control Center Ultimate benötigt eine grafische X11/Xfce-Umgebung.")
+
+if __name__ == "__main__":
+    main()

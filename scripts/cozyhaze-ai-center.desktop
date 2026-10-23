@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CozyHaze AI Center
+Name[de]=CozyHaze KI-Zentrum
+Comment=AI assistants, Homelab LLM server integration, and secure API keys
+Comment[de]=KI-Assistenten, Homelab-LLM-Server-Anbindung und sichere API-Schlüssel
+Exec=/usr/local/bin/cozyhaze-ai-center
+Icon=applications-science
+Terminal=false
+Categories=Development;Utility;
+Keywords=ai;chatgpt;claude;gemini;copilot;ollama;llm;api;
+StartupNotify=true

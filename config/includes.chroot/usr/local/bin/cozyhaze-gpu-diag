@@ -1,0 +1,268 @@
+#!/bin/bash
+# ==============================================================================
+# CozyHaze OS - Hardware- und GPU-Diagnosewerkzeug
+# Entwickelt für Apple MacBook Pro 15" 2011 (MacBookPro8,2)
+# ==============================================================================
+
+set -u
+
+# Farbdefinitionen für übersichtliche Terminalausgabe
+C_RESET="\033[0m"
+C_BOLD="\033[1m"
+C_CYAN="\033[36m"
+C_GREEN="\033[32m"
+C_YELLOW="\033[33m"
+C_RED="\033[31m"
+C_GRAY="\033[90m"
+
+print_header() {
+    echo -e "${C_CYAN}${C_BOLD}===================================================================${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}          CozyHaze OS - Hardware- & GPU-Diagnose                   ${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}===================================================================${C_RESET}"
+    echo -e "${C_GRAY}Systemzeit: $(date '+%Y-%m-%d %H:%M:%S')${C_RESET}\n"
+}
+
+check_root_hint() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${C_YELLOW}[HINWEIS] Dieses Skript läuft nicht als root. Für vollständige${C_RESET}"
+        echo -e "${C_YELLOW}          EFI- und DMI-Berechtigungen bitte mit 'sudo' ausführen.${C_RESET}\n"
+    fi
+}
+
+section_system_info() {
+    echo -e "${C_BOLD}--- 1. System & Hardware-Identifikation ---${C_RESET}"
+    
+    local dmi_prod="Unbekannt"
+    local dmi_board="Unbekannt"
+    local dmi_bios="Unbekannt"
+    
+    if [ -r /sys/class/dmi/id/product_name ]; then
+        dmi_prod=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "N/A")
+    fi
+    if [ -r /sys/class/dmi/id/board_name ]; then
+        dmi_board=$(cat /sys/class/dmi/id/board_name 2>/dev/null || echo "N/A")
+    fi
+    if [ -r /sys/class/dmi/id/bios_version ]; then
+        dmi_bios=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || echo "N/A")
+    fi
+
+    echo -e "  Modellkennung  : ${C_BOLD}${dmi_prod}${C_RESET}"
+    echo -e "  Hauptplatine   : ${dmi_board}"
+    echo -e "  Apple EFI/BIOS : ${dmi_bios}"
+    echo -e "  Linux Kernel   : $(uname -r) ($(uname -m))"
+
+    if [ "$dmi_prod" = "MacBookPro8,2" ]; then
+        echo -e "  Hardware-Match : ${C_GREEN}✓ Apple MacBook Pro 15\" (2011) verifiziert.${C_RESET}"
+    elif [ "$dmi_prod" = "MacBookPro8,3" ]; then
+        echo -e "  Hardware-Match : ${C_GREEN}✓ Apple MacBook Pro 17\" (2011) verifiziert (gleiche GPU-Architektur).${C_RESET}"
+    else
+        echo -e "  Hardware-Match : ${C_YELLOW}! Anderes System / Virtuelle Maschine (${dmi_prod})${C_RESET}"
+    fi
+    echo ""
+}
+
+section_gpu_devices() {
+    echo -e "${C_BOLD}--- 2. Erkannte Grafikkarten (PCI-Bus) ---${C_RESET}"
+    
+    local found_intel=0
+    local found_amd=0
+
+    if command -v lspci >/dev/null 2>&1; then
+        while IFS= read -r line; do
+            if echo "$line" | grep -qi "intel"; then
+                echo -e "  ${C_GREEN}[iGPU - Aktiv]${C_RESET} $line"
+                found_intel=1
+            elif echo "$line" | grep -qi -E "amd|ati|radeon"; then
+                echo -e "  ${C_RED}[dGPU - Defekt]${C_RESET} $line"
+                found_amd=1
+            else
+                echo -e "  [VGA/Display]  $line"
+            fi
+        done < <(lspci -nn | grep -i -E "vga|3d|display")
+    else
+        echo -e "  ${C_RED}lspci nicht gefunden (Paket pciutils erforderlich).${C_RESET}"
+    fi
+
+    echo ""
+    echo -e "  Intel HD 3000 Status : $( [ $found_intel -eq 1 ] && echo -e "${C_GREEN}Gefunden${C_RESET}" || echo -e "${C_YELLOW}Nicht im PCI-Listing${C_RESET}" )"
+    echo -e "  AMD Radeon Status    : $( [ $found_amd -eq 1 ] && echo -e "${C_YELLOW}Gefunden am Bus (Sollte deaktiviert sein)${C_RESET}" || echo -e "${C_GREEN}Vom Bus getrennt / Stromlos${C_RESET}" )"
+    echo ""
+}
+
+section_kernel_modules() {
+    echo -e "${C_BOLD}--- 3. Geladene Grafiktreiber & Kernelmodule ---${C_RESET}"
+
+    local mod_i915
+    local mod_radeon
+    local mod_amdgpu
+    local mod_gmux
+
+    mod_i915=$(lsmod | grep "^i915 " || true)
+    mod_radeon=$(lsmod | grep "^radeon " || true)
+    mod_amdgpu=$(lsmod | grep "^amdgpu " || true)
+    mod_gmux=$(lsmod | grep "^apple_gmux " || true)
+
+    if [ -n "$mod_i915" ]; then
+        echo -e "  i915 (Intel)   : ${C_GREEN}✓ GELADEN${C_RESET} (${mod_i915})"
+    else
+        echo -e "  i915 (Intel)   : ${C_YELLOW}! NICHT GELADEN (z.B. bei nomodeset oder VESA)${C_RESET}"
+    fi
+
+    if [ -n "$mod_radeon" ]; then
+        echo -e "  radeon (AMD)   : ${C_RED}✗ WARNUNG: GELADEN!${C_RESET} (${mod_radeon})"
+        echo -e "                   ${C_RED}Gefahr von Einfrieren oder Überhitzung der defekten GPU!${C_RESET}"
+    else
+        echo -e "  radeon (AMD)   : ${C_GREEN}✓ GESPERRT / NICHT GELADEN (Optimal)${C_RESET}"
+    fi
+
+    if [ -n "$mod_amdgpu" ]; then
+        echo -e "  amdgpu (AMD)   : ${C_RED}✗ WARNUNG: GELADEN!${C_RESET} (${mod_amdgpu})"
+    else
+        echo -e "  amdgpu (AMD)   : ${C_GREEN}✓ GESPERRT / NICHT GELADEN (Optimal)${C_RESET}"
+    fi
+
+    if [ -n "$mod_gmux" ]; then
+        echo -e "  apple_gmux     : ${C_CYAN}Geladen${C_RESET} (${mod_gmux})"
+    else
+        echo -e "  apple_gmux     : Nicht aktiv"
+    fi
+    echo ""
+}
+
+section_gmux_status() {
+    echo -e "${C_BOLD}--- 4. Apple GMUX Hardware-Multiplexer Status ---${C_RESET}"
+
+    if [ -d /sys/kernel/debug/apple_gmux ]; then
+        echo -e "  Debugfs GMUX   : Vorhanden"
+        if [ -r /sys/kernel/debug/apple_gmux/selected_state ]; then
+            local state
+            state=$(cat /sys/kernel/debug/apple_gmux/selected_state 2>/dev/null || echo "N/A")
+            echo -e "  Aktiver Port   : ${state}"
+        fi
+    else
+        echo -e "  Debugfs GMUX   : Nicht gemountet oder nicht verfügbar (Standard bei normalem Boot)"
+    fi
+
+    # Prüfen, ob Helligkeitsregler über GMUX oder Intel gesteuert wird
+    if [ -d /sys/class/backlight ]; then
+        echo -e "  Backlight-Treiber:"
+        for bl in /sys/class/backlight/*; do
+            if [ -d "$bl" ]; then
+                local bname
+                local cur_b
+                local max_b
+                bname=$(basename "$bl")
+                cur_b=$(cat "$bl/actual_brightness" 2>/dev/null || echo "?")
+                max_b=$(cat "$bl/max_brightness" 2>/dev/null || echo "?")
+                echo -e "    - ${C_CYAN}${bname}${C_RESET}: Helligkeit ${cur_b}/${max_b}"
+            fi
+        done
+    else
+        echo -e "  Keine Backlight-Schnittstelle unter /sys/class/backlight gefunden."
+    fi
+    echo ""
+}
+
+section_efi_vars() {
+    echo -e "${C_BOLD}--- 5. Apple EFI-Variablen (gpu-power-prefs) ---${C_RESET}"
+
+    local efivarfs_path="/sys/firmware/efi/efivars"
+    local var_name="gpu-power-prefs-fa4ce28d-b62f-4c99-9cc3-6815686e30f9"
+    local full_path="${efivarfs_path}/${var_name}"
+
+    if [ ! -d "$efivarfs_path" ]; then
+        echo -e "  ${C_YELLOW}efivarfs ist nicht unter /sys/firmware/efi/efivars gemountet.${C_RESET}"
+        echo -e "  (System möglicherweise im BIOS/Legacy-Modus oder efivarfs nicht geladen)."
+        echo ""
+        return
+    fi
+
+    if [ -f "$full_path" ]; then
+        echo -e "  Variable existiert : ${C_GREEN}JA${C_RESET} (${full_path})"
+        
+        # Hexdump der ersten Bytes
+        local hex_val
+        if command -v hexdump >/dev/null 2>&1; then
+            hex_val=$(hexdump -C "$full_path" 2>/dev/null | head -n 1)
+        elif command -v od >/dev/null 2>&1; then
+            hex_val=$(od -An -tx1 "$full_path" 2>/dev/null | head -n 1)
+        else
+            hex_val="N/A"
+        fi
+        echo -e "  Rohdaten (Hex)     : ${hex_val}"
+
+        # Byte 5 (Index 4 im 0-basierten Datenbereich nach den 4 Byte Attributes)
+        # Attribute (4 Bytes) + Daten (4 Bytes). Byte 5 in 1-basierter Datei ist Datenbyte 0:
+        # \x01 = Intel iGPU erzwungen, \x00 = AMD dGPU
+        if [ -r "$full_path" ]; then
+            local byte5
+            byte5=$(tail -c +5 "$full_path" 2>/dev/null | head -c 1 | od -An -tu1 2>/dev/null | tr -d ' ' || echo "")
+            if [ "$byte5" = "1" ]; then
+                echo -e "  Auswertung         : ${C_GREEN}✓ INTEL HD 3000 (iGPU) ist im EFI erzwungen (Wert 0x01).${C_RESET}"
+            elif [ "$byte5" = "0" ]; then
+                echo -e "  Auswertung         : ${C_RED}✗ ACHTUNG: AMD dGPU ist im EFI ausgewählt (Wert 0x00)!${C_RESET}"
+                echo -e "                       Bitte führen Sie 'cozyhaze-gpu-repair' aus!"
+            else
+                echo -e "  Auswertung         : ${C_YELLOW}Unerwarteter Wert ($byte5) oder Lesebeschränkung.${C_RESET}"
+            fi
+        fi
+    else
+        echo -e "  Variable existiert : ${C_YELLOW}NEIN (Nicht gesetzt)${C_RESET}"
+        echo -e "  Hinweis            : Nach einem PRAM/NVRAM-Reset setzt die Apple-Firmware"
+        echo -e "                       keine gpu-power-prefs und schaltet standardmäßig auf AMD um."
+        echo -e "                       Mit 'sudo cozyhaze-gpu-repair' kann die Intel-GPU fixiert werden."
+    fi
+    echo ""
+}
+
+section_cmdline_check() {
+    echo -e "${C_BOLD}--- 6. Aktuelle Kernel-Boot-Parameter ---${C_RESET}"
+    if [ -r /proc/cmdline ]; then
+        local cmd
+        cmd=$(cat /proc/cmdline)
+        echo -e "  /proc/cmdline:"
+        echo -e "  ${C_GRAY}${cmd}${C_RESET}"
+        echo ""
+        
+        if echo "$cmd" | grep -q "nomodeset"; then
+            echo -e "  ${C_YELLOW}[HINWEIS] 'nomodeset' ist aktiv. Grafikbeschleunigung ist deaktiviert.${C_RESET}"
+        fi
+        if echo "$cmd" | grep -q "radeon.modeset=0"; then
+            echo -e "  ${C_GREEN}✓ 'radeon.modeset=0' ist aktiv.${C_RESET}"
+        else
+            echo -e "  ${C_YELLOW}! 'radeon.modeset=0' fehlt in den Boot-Parametern.${C_RESET}"
+        fi
+        if echo "$cmd" | grep -q "i915.lvds_channel_mode=2"; then
+            echo -e "  ${C_GREEN}✓ 'i915.lvds_channel_mode=2' ist aktiv.${C_RESET}"
+        fi
+    fi
+    echo ""
+}
+
+section_recommendations() {
+    echo -e "${C_BOLD}--- 7. Zusammenfassung & Empfehlungen ---${C_RESET}"
+    local is_safe=1
+
+    if lsmod | grep -q -E "^radeon|^amdgpu"; then
+        echo -e "  ${C_RED}[!] AMD-Treiber aktiv: Führen Sie 'sudo cozyhaze-gpu-repair' aus, um Treiber zu blockieren.${C_RESET}"
+        is_safe=0
+    fi
+
+    if [ $is_safe -eq 1 ]; then
+        echo -e "  ${C_GREEN}✓ Die Grafikkonfiguration entspricht den CozyHaze OS Sicherheitsvorgaben.${C_RESET}"
+        echo -e "    Die defekte AMD GPU ist isoliert; das System arbeitet stabil auf der Intel HD 3000."
+    fi
+    echo ""
+}
+
+# Hauptablauf
+print_header
+check_root_hint
+section_system_info
+section_gpu_devices
+section_kernel_modules
+section_gmux_status
+section_efi_vars
+section_cmdline_check
+section_recommendations
+exit 0

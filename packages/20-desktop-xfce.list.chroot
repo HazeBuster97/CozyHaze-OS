@@ -1,0 +1,55 @@
+# CozyHaze OS - 20-desktop-xfce
+# Xfce4 Desktop, LightDM Display Manager und visuelle Komponenten
+
+# X11 & Intel Grafiktreiber
+xorg
+xserver-xorg-video-intel
+xserver-xorg-core
+mesa-utils
+mesa-va-drivers
+libgl1-mesa-dri
+
+# Xfce Kern-Desktop
+xfce4
+xfce4-panel
+xfce4-session
+xfce4-settings
+xfwm4
+xfdesktop4
+thunar
+thunar-archive-plugin
+thunar-volman
+
+# Plugins & Erweiterungen
+xfce4-whiskermenu-plugin
+xfce4-pulseaudio-plugin
+xfce4-notifyd
+xfce4-terminal
+xfce4-screenshooter
+xfce4-power-manager
+xfce4-taskmanager
+
+# Display Manager & Bootsplash
+lightdm
+lightdm-gtk-greeter
+lightdm-gtk-greeter-settings
+plymouth
+plymouth-themes
+plymouth-x11
+
+# Themes & Schriften
+papirus-icon-theme
+fonts-roboto
+fonts-ubuntu
+fonts-dejavu
+fonts-noto-core
+fonts-font-awesome
+dmz-cursor-theme
+
+# Hilfswerkzeuge
+policykit-1-gnome
+network-manager-gnome
+rofi
+catfish
+mugshot
+zenity

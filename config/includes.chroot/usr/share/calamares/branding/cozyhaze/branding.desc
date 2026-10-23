@@ -1,0 +1,31 @@
+# CozyHaze OS - Calamares Branding
+---
+componentName:  cozyhaze
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 960px,640px
+
+strings:
+    productName:         "CozyHaze OS"
+    shortProductName:    "CozyHaze"
+    version:             "2026.10 LTS"
+    shortVersion:        "2026.10"
+    versionedName:       "CozyHaze OS 2026.10 (MacBook Pro Edition)"
+    shortVersionedName:  "CozyHaze OS 2026.10"
+    bootloaderEntryName: "CozyHaze OS"
+    productUrl:          "https://github.com/cozyhaze-os"
+    supportUrl:          "https://github.com/cozyhaze-os/issues"
+
+images:
+    productLogo:         "cozyhaze-logo.png"
+    productIcon:         "cozyhaze-logo.png"
+    productWelcome:      "welcome.png"
+
+style:
+   SidebarBackground:    "#141720"
+   SidebarText:          "#CBD5E1"
+   SidebarTextCurrent:   "#00F2FE"
+   SidebarBackgroundCurrent: "#1E293B"
+
+slideshow:               "show.qml"

@@ -1,0 +1,35 @@
+# CozyHaze Glow - Plymouth Script
+# Zentriertes Logo mit dezentem Neon-Fortschrittsbalken
+
+# Hintergrund auf Tief-Anthrazit setzen
+Window.SetBackgroundTopColor(0.058, 0.066, 0.090);
+Window.SetBackgroundBottomColor(0.058, 0.066, 0.090);
+
+# Logo laden und zentrieren
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.opacity = 1.0;
+
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+
+logo.x = (screen_width - logo.image.GetWidth()) / 2;
+logo.y = (screen_height - logo.image.GetHeight()) / 2 - 30;
+logo.sprite.SetPosition(logo.x, logo.y, 10);
+
+# Status-Text
+message.sprite = Sprite();
+message.sprite.SetPosition(screen_width / 2, logo.y + logo.image.GetHeight() + 40, 10);
+
+fun message_callback(text) {
+    my_image = Image.Text(text, 0.58, 0.64, 0.72, 1, "Sans 11");
+    message.sprite.SetImage(my_image);
+    message.sprite.SetX((screen_width - my_image.GetWidth()) / 2);
+}
+Plymouth.SetMessageFunction(message_callback);
+
+# Boot-Fortschritt
+fun refresh_callback() {
+    # Hält das Rendering ruhig und flackerfrei auf Intel HD 3000
+}
+Plymouth.SetRefreshFunction(refresh_callback);
